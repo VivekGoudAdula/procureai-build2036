@@ -1469,7 +1469,7 @@ const Procurement = () => {
   return (
     <div className="space-y-5 min-h-[calc(100dvh-5rem)] w-full max-w-7xl mx-auto text-slate-900 pb-12">
       {/* HEADER WITH TIMELINE ON THE RIGHT */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 px-1">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 px-1 pb-5 border-b border-slate-200/80">
         {/* Left: Title & Badges */}
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
