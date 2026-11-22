@@ -1,10 +1,11 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends, Request, status
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends, Request, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from typing import Optional, Any
+from typing import Optional, Any, Union, List, Dict
 import os
+import re
 import hashlib
 from datetime import datetime, timedelta, timezone
 import time
@@ -20,10 +21,13 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 from ai.ai_agent import select_best_supplier, run_agent_competition
 from services.escrow_service import (
+    create_escrow as create_escrow_record,
+    fund_escrow,
     create_and_fund_escrow,
     get_escrow,
     transition_escrow,
 )
+from services import cashfree_service
 from services.alibaba_procurement_service import AlibabaProcurementService
 from services.multilingual_negotiation_service import MultilingualNegotiationService
 from services.procurement_message_engine import ProcurementMessageEngine
@@ -133,6 +137,7 @@ from database.db import (
     supplier_ratings_collection,
     chat_messages_collection,
     audit_logs_collection,
+    rfqs_collection,
 )
 from services.audit_service import log_event, get_audit_logs, get_audit_stats
 
@@ -557,10 +562,11 @@ async def human_select_supplier(request: Request, req: HumanSelectSupplierReques
 @limiter.limit("20/minute")
 async def create_escrow(request: Request, req: EscrowRequest, current_user: str = Depends(get_current_user)):
     """
-    Create and fund simulated escrow for procurement transaction.
+    Create simulated escrow for procurement transaction in CREATED state.
+    Funding is completed separately via Cashfree sandbox payment.
     """
     amount = req.amount_inr if req.amount_inr else (req.amount or 0.0)
-    escrow_record = create_and_fund_escrow(
+    escrow_record = create_escrow_record(
         buyer_id=current_user,
         supplier_id=req.supplier_id,
         amount_inr=amount,
@@ -583,17 +589,230 @@ async def create_escrow(request: Request, req: EscrowRequest, current_user: str 
     )
     return escrow_record
 
+
+# ---------------------------------------------------------
+# Cashfree Payment Gateway Endpoints (Sandbox Escrow Funding)
+# ---------------------------------------------------------
+
+class CashfreeCreateOrderRequest(BaseModel):
+    escrow_id: str
+    customer_phone: str
+
+
+class CashfreeVerifyRequest(BaseModel):
+    escrow_id: str
+
+
+@app.post("/api/payments/cashfree/create-order")
+@limiter.limit("30/minute")
+async def cashfree_create_order(
+    request: Request,
+    req: CashfreeCreateOrderRequest,
+    current_user: str = Depends(get_current_user),
+):
+    """
+    Creates a Cashfree payment session for an escrow record in CREATED state.
+    Only the owner of the escrow can create a payment order.
+    """
+    if not cashfree_service.is_cashfree_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Payments not configured",
+        )
+
+    escrow = get_escrow(req.escrow_id)
+    if not escrow:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Escrow '{req.escrow_id}' not found.",
+        )
+
+    if escrow.get("buyer_id") != current_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You are not the owner of this escrow.",
+        )
+
+    if escrow.get("status") != "CREATED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot create payment order for escrow in state '{escrow.get('status')}'. Only 'CREATED' escrows can be funded.",
+        )
+
+    # Validate phone: 10 Indian digits
+    raw_phone = req.customer_phone.strip()
+    digits_only = re.sub(r"\D", "", raw_phone)
+    if len(digits_only) == 12 and digits_only.startswith("91"):
+        digits_only = digits_only[2:]
+    if len(digits_only) != 10 or digits_only[0] not in "6789":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid Indian phone number. Please enter a valid 10-digit number starting with 6, 7, 8, or 9.",
+        )
+
+    buyer_doc = users_collection.find_one({"email": current_user})
+    buyer_name = (buyer_doc.get("name") if buyer_doc and buyer_doc.get("name") else current_user)
+
+    customer = {
+        "customer_id": current_user.replace("@", "_").replace(".", "_"),
+        "customer_name": buyer_name,
+        "customer_email": current_user,
+        "customer_phone": digits_only,
+    }
+
+    cf_order = cashfree_service.create_order(escrow, customer)
+    order_id = cf_order["order_id"]
+
+    escrows_collection.update_one(
+        {"escrow_id": escrow["escrow_id"]},
+        {
+            "$set": {
+                "cashfree_order_id": order_id,
+                "payment_status": "PAYMENT_INITIATED",
+                "customer_phone": digits_only,
+            },
+            "$inc": {"order_attempt_count": 1},
+        },
+    )
+
+    log_event(
+        user_id=current_user,
+        user_email=current_user,
+        action="CASHFREE_ORDER_CREATED",
+        module="Payments",
+        entity_type="escrow",
+        entity_id=escrow["escrow_id"],
+        details={
+            "escrow_id": escrow["escrow_id"],
+            "cashfree_order_id": order_id,
+            "amount_inr": escrow.get("amount_inr", escrow.get("amount")),
+        },
+    )
+
+    return {
+        "payment_session_id": cf_order.get("payment_session_id"),
+        "cashfree_order_id": order_id,
+        "amount_inr": escrow.get("amount_inr", escrow.get("amount")),
+    }
+
+
+@app.post("/api/payments/cashfree/verify")
+@limiter.limit("30/minute")
+async def cashfree_verify_order(
+    request: Request,
+    req: CashfreeVerifyRequest,
+    current_user: str = Depends(get_current_user),
+):
+    """
+    Verifies Cashfree order status. If PAID and matching amount, transitions escrow to FUNDED.
+    Idempotent: returns current record if already FUNDED.
+    """
+    if not cashfree_service.is_cashfree_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Payments not configured",
+        )
+
+    escrow = get_escrow(req.escrow_id)
+    if not escrow:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Escrow '{req.escrow_id}' not found.",
+        )
+
+    if escrow.get("buyer_id") != current_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You are not the owner of this escrow.",
+        )
+
+    # Idempotent check: if already funded or further along
+    if escrow.get("status") in ["FUNDED", "PROOF_UPLOADED", "VERIFIED", "RELEASED"]:
+        return {
+            "status": escrow.get("status"),
+            "funded": True,
+            "escrow": escrow,
+            "message": "Escrow already funded.",
+        }
+
+    cashfree_order_id = escrow.get("cashfree_order_id")
+    if not cashfree_order_id:
+        return {
+            "status": escrow.get("status", "CREATED"),
+            "funded": False,
+            "detail": "No Cashfree order initiated for this escrow.",
+        }
+
+    cf_order = cashfree_service.get_order(cashfree_order_id)
+    order_status = cf_order.get("order_status")
+    order_amount = float(cf_order.get("order_amount", 0.0))
+    order_id = cf_order.get("order_id")
+
+    expected_amount = float(escrow.get("amount_inr", escrow.get("amount", 0.0)))
+
+    # Strict match: PAID + matching amount + matching order_id
+    if (
+        order_status == "PAID"
+        and abs(order_amount - expected_amount) < 0.01
+        and order_id == cashfree_order_id
+    ):
+        updated_escrow = fund_escrow(
+            escrow_id=escrow["escrow_id"],
+            cashfree_order_id=cashfree_order_id,
+            paid_amount=order_amount,
+            actor=current_user,
+        )
+
+        log_event(
+            user_id=current_user,
+            user_email=current_user,
+            action="ESCROW_FUNDED_CASHFREE",
+            module="Payments",
+            entity_type="escrow",
+            entity_id=escrow["escrow_id"],
+            details={
+                "escrow_id": escrow["escrow_id"],
+                "cashfree_order_id": cashfree_order_id,
+                "paid_amount": order_amount,
+            },
+        )
+
+        return {
+            "status": "FUNDED",
+            "funded": True,
+            "escrow": updated_escrow,
+            "message": "Payment verified. Escrow transitioned to FUNDED.",
+        }
+    else:
+        return {
+            "status": escrow.get("status", "CREATED"),
+            "funded": False,
+            "order_status": order_status,
+            "detail": (
+                "Order amount mismatch"
+                if order_status == "PAID"
+                else f"Payment not completed (Cashfree status: {order_status})"
+            ),
+        }
+
 @app.post("/api/procurement/release-settlement")
 @limiter.limit("20/minute")
 async def confirm_delivery(request: Request, req: ConfirmDeliveryRequest, current_user: str = Depends(get_current_user)):
     """
     Release escrow settlement after delivery verification.
+    Only the buyer/owner of the escrow may release settlement.
     """
+    escrow = get_escrow(req.transaction_id)
+    if not escrow:
+        raise HTTPException(status_code=404, detail=f"Escrow '{req.transaction_id}' not found.")
+    if escrow.get("buyer_id") and escrow.get("buyer_id") != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: You are not the owner of this escrow.")
+
     record = transition_escrow(
         escrow_id=req.transaction_id,
         target_status="RELEASED",
         actor=current_user,
-        note="Escrow settlement released following verified delivery.",
+        note="Settlement initiated (simulated payout).",
     )
     
     log_event(
@@ -631,41 +850,67 @@ async def confirm_delivery(request: Request, req: ConfirmDeliveryRequest, curren
 
     return record
 
+
 @app.post("/api/submit-delivery-proof")
 @limiter.limit("20/minute")
 async def submit_delivery_proof(
     request: Request,
     escrow_id: str = Form(...),
-    proof_type: str = Form(...), # "invoice_file" | "timestamp" | "tracking_id"
+    proof_type: str = Form(...),  # "invoice_file" | "timestamp" | "tracking_id"
     file: UploadFile = File(None),
     value: str = Form(None),
     current_user: str = Depends(get_current_user)
 ):
+    """
+    Submits delivery proof for an escrow record.
+    Restricted to the escrow owner.
+    Files are stored in MongoDB (proofs collection) as base64, max 5 MB, JPG/PNG/PDF only.
+    """
+    escrow = get_escrow(escrow_id)
+    if not escrow:
+        raise HTTPException(status_code=404, detail=f"Escrow '{escrow_id}' not found.")
+    if escrow.get("buyer_id") and escrow.get("buyer_id") != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: You are not the owner of this escrow.")
+
     file_url = None
     if proof_type == "invoice_file":
         if not file:
             raise HTTPException(status_code=400, detail="Invoice file is required")
         
-        # Validate MIME type
-        if file.content_type not in ["image/png", "image/jpeg", "application/pdf"]:
-            raise HTTPException(status_code=400, detail="Only PNG, JPEG, and PDF file types are allowed")
-        
-        # Validate extension
-        ext = file.filename.split(".")[-1].lower()
-        if ext not in ["jpg", "jpeg", "png", "pdf"]:
-            raise HTTPException(status_code=400, detail="Only JPG, PNG, and PDF are allowed")
-            
-        filename = f"{escrow_id}_{int(time.time())}.{ext}"
-        invoice_dir = os.path.join(UPLOAD_DIR, "invoices")
-        if not os.path.exists(invoice_dir):
-            os.makedirs(invoice_dir)
-            
-        filepath = os.path.join(invoice_dir, filename)
-        with open(filepath, "wb") as f:
-            f.write(await file.read())
-        
-        file_url = f"/uploads/invoices/{filename}"
-        proof_value = filename
+        ext = file.filename.split(".")[-1].lower() if file.filename and "." in file.filename else ""
+        allowed_exts = ["jpg", "jpeg", "png", "pdf"]
+        allowed_mimes = ["image/jpeg", "image/png", "application/pdf"]
+
+        if ext not in allowed_exts or file.content_type not in allowed_mimes:
+            raise HTTPException(status_code=400, detail="Invalid file type. Only PNG, JPEG, and PDF file types are allowed")
+
+        file_bytes = await file.read()
+        max_size = 5 * 1024 * 1024  # 5 MB
+        if len(file_bytes) > max_size:
+            raise HTTPException(status_code=400, detail="File size exceeds maximum limit of 5 MB")
+
+        import base64
+        b64_data = base64.b64encode(file_bytes).decode("utf-8")
+        primary_id = escrow.get("escrow_id", escrow_id)
+
+        proof_doc = {
+            "escrow_id": primary_id,
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "size_bytes": len(file_bytes),
+            "file_data": b64_data,
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "uploaded_by": current_user,
+        }
+        from database.db import proofs_collection
+        proofs_collection.replace_one(
+            {"escrow_id": primary_id},
+            proof_doc,
+            upsert=True
+        )
+
+        file_url = f"/api/procurement/proof/{primary_id}"
+        proof_value = file.filename
     else:
         proof_value = value if value else datetime.now(timezone.utc).isoformat()
 
@@ -685,12 +930,168 @@ async def submit_delivery_proof(
     )
     return record
 
+
+@app.get("/api/procurement/proof/{escrow_id}")
+async def get_proof_file(escrow_id: str, current_user: str = Depends(get_current_user)):
+    """
+    Retrieves the delivery proof document from MongoDB storage.
+    Restricted to authorized parties (escrow owner or supplier).
+    """
+    escrow = get_escrow(escrow_id)
+    if not escrow:
+        raise HTTPException(status_code=404, detail="Escrow not found.")
+    if escrow.get("buyer_id") and escrow.get("buyer_id") != current_user and escrow.get("supplier_id") != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: You are not authorized to view this proof.")
+
+    primary_id = escrow.get("escrow_id", escrow_id)
+    from database.db import proofs_collection
+    proof = proofs_collection.find_one({"escrow_id": primary_id})
+    if not proof or "file_data" not in proof:
+        raise HTTPException(status_code=404, detail="Proof file not found.")
+
+    import base64
+    file_bytes = base64.b64decode(proof["file_data"])
+    return Response(
+        content=file_bytes,
+        media_type=proof.get("content_type", "application/octet-stream"),
+        headers={"Content-Disposition": f'inline; filename="{proof.get("filename", "proof")}"'}
+    )
+
+
+class AuditProofRequest(BaseModel):
+    escrow_id: str
+
+
+@app.post("/api/procurement/audit-proof")
+@limiter.limit("20/minute")
+async def audit_delivery_proof(
+    request: Request,
+    req: AuditProofRequest,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Performs an automated review check using Groq LLM against the uploaded proof and order parameters.
+    Returns extracted fields and detected mismatches. If Groq is unavailable, gracefully returns
+    'Automated check unavailable; buyer confirms manually'.
+    """
+    escrow = get_escrow(req.escrow_id)
+    if not escrow:
+        raise HTTPException(status_code=404, detail=f"Escrow '{req.escrow_id}' not found.")
+    if escrow.get("buyer_id") and escrow.get("buyer_id") != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: You are not the owner of this escrow.")
+
+    proof_data = escrow.get("delivery_proof")
+    if not proof_data:
+        raise HTTPException(status_code=400, detail="No delivery proof uploaded for this escrow.")
+
+    expected_amount = float(escrow.get("amount_inr", escrow.get("amount", 0.0)))
+    expected_supplier_id = escrow.get("supplier_id")
+    
+    from database.db import proofs_collection, suppliers_collection
+    supplier_doc = suppliers_collection.find_one({"id": expected_supplier_id}) if expected_supplier_id else None
+    expected_supplier_name = supplier_doc.get("name") if supplier_doc else escrow.get("supplier_name", expected_supplier_id or "")
+
+    extracted_text = ""
+    primary_id = escrow.get("escrow_id", req.escrow_id)
+    proof_record = proofs_collection.find_one({"escrow_id": primary_id})
+    if proof_record and "file_data" in proof_record:
+        import base64
+        file_bytes = base64.b64decode(proof_record["file_data"])
+        content_type = proof_record.get("content_type", "")
+        if "pdf" in content_type:
+            try:
+                import io, pypdf
+                reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+                extracted_text = " ".join([page.extract_text() or "" for page in reader.pages]).strip()
+            except Exception as e:
+                print(f"[AuditProof] PDF extraction error: {e}")
+        if not extracted_text:
+            extracted_text = f"Document filename: {proof_record.get('filename')}, size: {proof_record.get('size_bytes')} bytes, type: {content_type}."
+    else:
+        extracted_text = f"Proof type: {proof_data.get('type')}, value: {proof_data.get('value')}, submitted at: {proof_data.get('submitted_at')}."
+
+    from services.llm_service import chat_json
+    system_prompt = (
+        "You are an automated invoice review auditor for a B2B procurement system. "
+        "Analyze the provided document text or proof description. "
+        "You must return a valid JSON object strictly matching this schema:\n"
+        "{\n"
+        '  "looks_like_invoice": true,\n'
+        '  "extracted": {\n'
+        '    "invoice_no": "string or null",\n'
+        '    "date": "string or null",\n'
+        '    "amount": number or null,\n'
+        '    "supplier_name": "string or null"\n'
+        '  }\n'
+        "}\n"
+        "Set looks_like_invoice to false if the document does not look like a commercial invoice or delivery receipt. "
+        "If specific fields cannot be found, set their values to null."
+    )
+    user_prompt = f"Order Expected Amount: ₹{expected_amount}\nOrder Expected Supplier: {expected_supplier_name}\n\nDocument Content:\n{extracted_text[:3000]}"
+
+    llm_res = chat_json(system_prompt, user_prompt)
+    if not llm_res or not isinstance(llm_res, dict):
+        return {
+            "status": "unavailable",
+            "looks_like_invoice": False,
+            "extracted": {
+                "invoice_no": None,
+                "date": None,
+                "amount": None,
+                "supplier_name": None,
+            },
+            "mismatches": [],
+            "message": "Automated check unavailable; buyer confirms manually"
+        }
+
+    looks_like_invoice = bool(llm_res.get("looks_like_invoice", False))
+    extracted = llm_res.get("extracted", {}) or {}
+    mismatches = []
+
+    if not looks_like_invoice:
+        mismatches.append("Document does not appear to be a standard commercial invoice or bill of lading.")
+
+    ext_amount = extracted.get("amount")
+    if ext_amount is not None:
+        try:
+            ext_amt_float = float(ext_amount)
+            if abs(ext_amt_float - expected_amount) > 1.0:
+                mismatches.append(f"Amount mismatch: invoice states ₹{ext_amt_float:,.2f}, expected ₹{expected_amount:,.2f}")
+        except (ValueError, TypeError):
+            pass
+
+    ext_supplier = extracted.get("supplier_name")
+    if ext_supplier and expected_supplier_name:
+        if expected_supplier_name.lower() not in str(ext_supplier).lower() and str(ext_supplier).lower() not in expected_supplier_name.lower():
+            mismatches.append(f"Supplier name mismatch: invoice mentions '{ext_supplier}', expected '{expected_supplier_name}'")
+
+    return {
+        "status": "completed",
+        "looks_like_invoice": looks_like_invoice,
+        "extracted": {
+            "invoice_no": extracted.get("invoice_no"),
+            "date": extracted.get("date"),
+            "amount": extracted.get("amount"),
+            "supplier_name": extracted.get("supplier_name"),
+        },
+        "mismatches": mismatches,
+        "message": "The buyer reviews the uploaded proof. An automated check highlights mismatches with the order."
+    }
+
+
 @app.post("/api/procurement/verify-delivery")
 @limiter.limit("20/minute")
 async def verify_delivery(request: Request, req: VerifyDeliveryRequest, current_user: str = Depends(get_current_user)):
     """
     Verify delivery proof before escrow release.
+    Restricted to the buyer/owner of the escrow.
     """
+    escrow = get_escrow(req.escrow_id)
+    if not escrow:
+        raise HTTPException(status_code=404, detail=f"Escrow '{req.escrow_id}' not found.")
+    if escrow.get("buyer_id") and escrow.get("buyer_id") != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: You are not the owner of this escrow.")
+
     record = transition_escrow(
         escrow_id=req.escrow_id,
         target_status="VERIFIED",
@@ -1332,6 +1733,228 @@ async def send_procurement_inquiry(request: Request, req: SendInquiryRequest, cu
     except Exception as e:
         print(f"[ProcureAI] Send Inquiry Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+from services.rfq_pdf_service import build_rfq_pdf, generate_rfq_number
+
+class GenerateRFQRequest(BaseModel):
+    supplier_id: Optional[str] = None
+    supplier_name: Optional[str] = None
+    supplier_email: Optional[str] = None
+    supplier_region: Optional[str] = "Global"
+    product: Optional[str] = None
+    product_name: Optional[str] = None
+    quantity: Optional[Union[int, str]] = 1
+    budget: Optional[Union[float, int, str]] = None
+    budget_inr: Optional[Union[float, int, str]] = None
+    unit_price: Optional[Union[float, int, str]] = 0.0
+    lead_time: Optional[str] = "30 Days"
+    delivery_location: Optional[str] = "India"
+    custom_requirements: Optional[str] = ""
+    incoterms: Optional[str] = "FOB / EXW"
+    payment_terms: Optional[str] = "100% Escrow on Delivery"
+
+
+@app.post("/api/procurement/rfq/generate")
+@limiter.limit("30/minute")
+async def generate_rfq(request: Request, req: GenerateRFQRequest, current_user: str = Depends(get_current_user)):
+    """
+    Builds an RFQ PDF, stores it in the MongoDB rfqs collection, and returns rfq_id and filename.
+    """
+    try:
+        supplier_name = req.supplier_name or "Selected Supplier"
+        supplier_id = str(req.supplier_id or supplier_name)
+        product = req.product or req.product_name or "Goods"
+        quantity = req.quantity or 1
+        budget = req.budget if req.budget is not None else (req.budget_inr if req.budget_inr is not None else 0.0)
+
+        # Check supplier email if provided or lookup
+        supplier_email = req.supplier_email
+        if not supplier_email or not supplier_email.strip():
+            s_doc = suppliers_collection.find_one({"id": supplier_id}) or suppliers_collection.find_one({"name": supplier_name})
+            if s_doc and s_doc.get("email"):
+                supplier_email = s_doc["email"]
+
+        if not supplier_email or not supplier_email.strip():
+            raise HTTPException(status_code=422, detail="Supplier email not available")
+
+        # Fetch real buyer details
+        buyer_doc = users_collection.find_one({"email": current_user})
+        buyer_name = buyer_doc.get("name") if buyer_doc and buyer_doc.get("name") else current_user
+
+        rfq_id = generate_rfq_number()
+        created_at_dt = datetime.now(timezone.utc)
+
+        pdf_bytes = build_rfq_pdf({
+            "rfq_id": rfq_id,
+            "created_at": created_at_dt,
+            "buyer_id": current_user,
+            "buyer_name": buyer_name,
+            "buyer_email": current_user,
+            "supplier_id": supplier_id,
+            "supplier_name": supplier_name,
+            "supplier_email": supplier_email,
+            "product": product,
+            "quantity": quantity,
+            "budget": budget,
+            "lead_time": req.lead_time or "30 Days",
+            "delivery_location": req.delivery_location or "India",
+            "custom_requirements": req.custom_requirements or "",
+        })
+
+        rfq_doc = {
+            "rfq_id": rfq_id,
+            "buyer_id": current_user,
+            "supplier_id": str(supplier_id),
+            "supplier_name": supplier_name,
+            "supplier_email": supplier_email,
+            "product": product,
+            "quantity": quantity,
+            "budget": budget,
+            "lead_time": req.lead_time or "30 Days",
+            "delivery_location": req.delivery_location or "India",
+            "custom_requirements": req.custom_requirements or "",
+            "pdf_bytes": pdf_bytes,
+            "created_at": created_at_dt.isoformat(),
+            "status": "generated"
+        }
+        rfqs_collection.insert_one(rfq_doc)
+
+        log_event(
+            user_id=current_user,
+            user_email=current_user,
+            action="GENERATE_RFQ",
+            module="Procurement",
+            entity_type="rfq",
+            entity_id=rfq_id,
+            details={"rfq_id": rfq_id, "supplier_id": supplier_id, "product": product}
+        )
+
+        return {
+            "rfq_id": rfq_id,
+            "filename": f"{rfq_id}.pdf"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ProcureAI] Generate RFQ Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/procurement/rfq/{rfq_id}/pdf")
+@limiter.limit("60/minute")
+async def get_rfq_pdf(request: Request, rfq_id: str, current_user: str = Depends(get_current_user)):
+    """
+    Returns the stored RFQ PDF. Accessible only to the RFQ owner (buyer_id).
+    """
+    rfq = rfqs_collection.find_one({"rfq_id": rfq_id})
+    if not rfq:
+        raise HTTPException(status_code=404, detail="RFQ not found")
+    if rfq.get("buyer_id") != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: You do not own this RFQ")
+
+    pdf_bytes = rfq.get("pdf_bytes")
+    if not pdf_bytes:
+        raise HTTPException(status_code=404, detail="RFQ PDF data missing")
+
+    from fastapi.responses import Response
+    return Response(
+        content=bytes(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{rfq_id}.pdf"'}
+    )
+
+
+@app.post("/api/procurement/rfq/{rfq_id}/send")
+@limiter.limit("30/minute")
+async def send_rfq(request: Request, rfq_id: str, current_user: str = Depends(get_current_user)):
+    """
+    Dispatches the RFQ PDF to the supplier via EmailService.
+    Owner-only. Respects EMAIL_DRY_RUN and EMAIL_OVERRIDE_TO.
+    """
+    rfq = rfqs_collection.find_one({"rfq_id": rfq_id})
+    if not rfq:
+        raise HTTPException(status_code=404, detail="RFQ not found")
+    if rfq.get("buyer_id") != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: You do not own this RFQ")
+
+    supplier_email = rfq.get("supplier_email")
+    if not supplier_email or not supplier_email.strip():
+        s_doc = suppliers_collection.find_one({"id": rfq.get("supplier_id")}) or suppliers_collection.find_one({"name": rfq.get("supplier_name")})
+        if s_doc and s_doc.get("email"):
+            supplier_email = s_doc["email"]
+
+    if not supplier_email or not supplier_email.strip():
+        raise HTTPException(status_code=422, detail="Supplier email not available")
+
+    buyer_doc = users_collection.find_one({"email": current_user})
+    buyer_name = buyer_doc.get("name") if buyer_doc and buyer_doc.get("name") else current_user
+    supplier_name = rfq.get("supplier_name", "Supplier")
+
+    subject = f"Request for Quotation {rfq_id}"
+    body_html = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px;">
+            <h2 style="color: #0f172a; margin-top: 0;">Request for Quotation</h2>
+            <p>Dear {supplier_name},</p>
+            <p>Please find attached our formal Request for Quotation (Reference: <strong>{rfq_id}</strong>) for <strong>{rfq.get('product')}</strong> ({rfq.get('quantity')} units).</p>
+            <p>Kindly review the specifications, terms, and delivery parameters detailed in the attached PDF and reply before the submission deadline.</p>
+            <p>Regards,<br/><strong>{buyer_name}</strong><br/>ProcureAI B2B Sourcing Network</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: 24px;" />
+            <p style="font-size: 11px; color: #94a3b8;">Automated communication generated via ProcureAI Sourcing Engine.</p>
+        </div>
+    </body>
+    </html>
+    """
+
+    attachments = [
+        {
+            "filename": f"{rfq_id}.pdf",
+            "content": bytes(rfq["pdf_bytes"])
+        }
+    ]
+
+    send_result = email_service.send_raw_email(
+        recipient_email=supplier_email,
+        subject=subject,
+        body_html=body_html,
+        attachments=attachments
+    )
+
+    send_timestamp = datetime.now(timezone.utc).isoformat()
+    rfqs_collection.update_one(
+        {"rfq_id": rfq_id},
+        {
+            "$set": {
+                "status": "sent" if send_result.get("status") == "success" else send_result.get("status", "sent"),
+                "sent_at": send_timestamp,
+                "send_result": send_result
+            }
+        }
+    )
+
+    log_event(
+        user_id=current_user,
+        user_email=current_user,
+        action="SEND_RFQ",
+        module="Procurement",
+        entity_type="rfq",
+        entity_id=rfq_id,
+        details={
+            "rfq_id": rfq_id,
+            "supplier_id": rfq.get("supplier_id"),
+            "supplier_email": supplier_email,
+            "status": send_result.get("status")
+        }
+    )
+
+    return {
+        "status": send_result.get("status", "success"),
+        "message": send_result.get("message", "RFQ dispatched successfully"),
+        "rfq_id": rfq_id,
+        "email_status": send_result
+    }
 
 
 # --- Forgot Password & Change Password Endpoints ---

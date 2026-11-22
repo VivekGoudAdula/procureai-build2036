@@ -24,6 +24,8 @@ escrows_collection = db["escrows"]
 supplier_ratings_collection = db["supplier_ratings"]
 chat_messages_collection = db["chat_messages"]
 audit_logs_collection = db["audit_logs"]
+rfqs_collection = db["rfqs"]
+proofs_collection = db["delivery_proofs"]
 
 # Ensure unique indexes
 users_collection.create_index("email", unique=True)
@@ -35,6 +37,9 @@ audit_logs_collection.create_index([("timestamp", -1)])
 audit_logs_collection.create_index([("user_id", 1)])
 audit_logs_collection.create_index([("module", 1)])
 audit_logs_collection.create_index([("action", 1)])
+rfqs_collection.create_index("rfq_id", unique=True)
+rfqs_collection.create_index("buyer_id")
+proofs_collection.create_index("escrow_id", unique=True)
 
 print(f"[MongoDB] Connected to database: '{DB_NAME}'")
 
