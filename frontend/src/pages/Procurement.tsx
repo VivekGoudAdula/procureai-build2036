@@ -1468,31 +1468,31 @@ const Procurement = () => {
 
   return (
     <div className="space-y-5 min-h-[calc(100dvh-5rem)] w-full max-w-7xl mx-auto text-slate-900 pb-12">
-      {/* HEADER & TIMELINE UNIFIED BAR */}
-      <div className="w-full bg-white border border-slate-200 rounded-2xl p-3 sm:py-3 sm:px-4 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-        {/* Left Title Block */}
-        <div className="min-w-0 shrink-0 xl:max-w-[280px] 2xl:max-w-xs">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <h1 className="text-base sm:text-lg font-display font-bold tracking-tight text-slate-900 leading-tight">
+      {/* HEADER WITH TIMELINE ON THE RIGHT */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 px-1">
+        {/* Left: Title & Badges */}
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-display font-bold tracking-tight text-slate-900 leading-tight">
               AI Procurement Intelligence
             </h1>
-            <div className="inline-flex items-center gap-1 shrink-0">
-              <Badge className="bg-amber-50 text-amber-700 border border-amber-200/60 text-[7px] font-black uppercase tracking-wider py-0 px-1.5 h-4">
+            <div className="inline-flex items-center gap-1.5 shrink-0">
+              <Badge className="bg-amber-50 text-amber-700 border border-amber-200/60 text-[8px] font-black uppercase tracking-wider py-0.5">
                 Trade Assurance
               </Badge>
-              <Badge className="bg-primary/10 text-primary border border-primary/20 text-[7px] font-black uppercase tracking-wider py-0 px-1.5 h-4">
+              <Badge className="bg-primary/10 text-primary border border-primary/20 text-[8px] font-black uppercase tracking-wider py-0.5">
                 Escrow Protected
               </Badge>
             </div>
           </div>
-          <p className="text-slate-500 font-medium text-[11px] truncate mt-0.5">
+          <p className="text-slate-500 mt-1 font-medium text-xs">
             Enterprise copilot for global cross-border sourcing & verified settlement.
           </p>
         </div>
 
-        {/* Right Timeline Progression Bar */}
-        <div className="flex-1 min-w-0 overflow-x-auto no-scrollbar xl:max-w-2xl 2xl:max-w-3xl">
-          <div className="flex items-center justify-between min-w-[500px] md:min-w-0">
+        {/* Right: Timeline Progression Bar */}
+        <div className="bg-white border border-slate-200 rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 shadow-xs overflow-x-auto no-scrollbar shrink-0 w-full lg:w-auto">
+          <div className="flex items-center justify-between gap-1 sm:gap-2 min-w-[480px] sm:min-w-[520px]">
             {[
               { label: 'Discovery', stepValue: 'form' },
               { label: 'Negotiation', stepValue: 'intelligence_dashboard' },
@@ -1534,7 +1534,7 @@ const Procurement = () => {
                 <React.Fragment key={idx}>
                   <div
                     className={cn(
-                      "flex flex-col items-center flex-1 relative cursor-pointer px-0.5",
+                      "flex flex-col items-center cursor-pointer px-1 relative",
                       (isCompleted || isActive) ? "hover:scale-105 transition-transform" : "cursor-not-allowed opacity-50"
                     )}
                     onClick={handleStepClick}
@@ -1553,7 +1553,7 @@ const Procurement = () => {
                     )}>{tStep.label}</span>
                   </div>
                   {idx < 5 && (
-                    <div className="flex-1 h-0.5 max-w-[32px] sm:max-w-[44px] self-start mt-3 sm:mt-3.5 bg-slate-100 relative overflow-hidden shrink-0">
+                    <div className="w-5 sm:w-8 h-0.5 self-start mt-3 sm:mt-3.5 bg-slate-100 relative overflow-hidden shrink-0">
                       <div className={cn(
                         "absolute inset-y-0 left-0 transition-all duration-500 bg-gradient-to-r from-violet-600 to-indigo-500",
                         isCompleted ? "w-full" : "w-0"
