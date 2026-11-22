@@ -12,3 +12,4 @@ pyjwt==2.12.1
 slowapi==0.1.9
 pytest-cov==7.1.0
 pytest==9.0.3
+reportlab>=4.4.0
