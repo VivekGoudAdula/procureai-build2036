@@ -256,7 +256,7 @@ const Dashboard = () => {
               Ecosystem Connected
             </div>
           </div>
-          <h1 className="text-4xl font-display font-medium tracking-tight text-slate-950">
+          <h1 className="text-[clamp(1.5rem,2.5vw,2.25rem)] font-display font-bold tracking-tight text-slate-950">
             Procurement Command Center
           </h1>
           <p className="text-slate-500 max-w-2xl font-medium text-sm leading-relaxed">

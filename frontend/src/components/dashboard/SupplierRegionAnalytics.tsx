@@ -44,36 +44,36 @@ export const SupplierRegionAnalytics: React.FC<RegionAnalyticsProps> = ({ region
           </Badge>
         </Link>
       </CardHeader>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+      <div className="overflow-x-auto min-w-0">
+        <table className="w-full text-left border-collapse min-w-[580px]">
           <thead>
             <tr className="bg-slate-50/30 text-slate-400 text-[10px] uppercase tracking-[0.15em] border-b border-slate-100/60">
-              <th className="px-10 py-4 font-black">Sourcing Hub</th>
-              <th className="px-10 py-4 font-black text-center">Active Suppliers</th>
-              <th className="px-10 py-4 font-black">Avg Delivery</th>
-              <th className="px-10 py-4 font-black">Avg MOQ</th>
-              <th className="px-10 py-4 font-black text-right">Avg Unit Cost</th>
+              <th className="px-5 sm:px-8 py-3.5 font-black">Sourcing Hub</th>
+              <th className="px-4 sm:px-6 py-3.5 font-black text-center">Active Suppliers</th>
+              <th className="px-4 sm:px-6 py-3.5 font-black">Avg Delivery</th>
+              <th className="px-4 sm:px-6 py-3.5 font-black">Avg MOQ</th>
+              <th className="px-5 sm:px-8 py-3.5 font-black text-right">Avg Unit Cost</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {items.map((row) => (
               <tr key={row.region} className="hover:bg-slate-50/40 transition-all group">
-                <td className="px-10 py-5 font-black text-slate-950 flex items-center gap-3">
+                <td className="px-5 sm:px-8 py-4 font-black text-slate-950 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-xs font-black text-slate-500 group-hover:bg-slate-950 group-hover:text-white group-hover:border-slate-950 transition-all duration-300">
                     {row.region.charAt(0)}
                   </div>
                   {row.region}
                 </td>
-                <td className="px-10 py-5 text-center font-bold text-slate-700">
+                <td className="px-4 sm:px-6 py-4 text-center font-bold text-slate-700">
                   {row.active_suppliers}
                 </td>
-                <td className="px-10 py-5 font-semibold text-slate-600">
+                <td className="px-4 sm:px-6 py-4 font-semibold text-slate-600">
                   {row.avg_delivery}
                 </td>
-                <td className="px-10 py-5 font-semibold text-slate-600">
+                <td className="px-4 sm:px-6 py-4 font-semibold text-slate-600">
                   {row.avg_moq}
                 </td>
-                <td className="px-10 py-5 text-right font-black text-slate-950 font-display">
+                <td className="px-5 sm:px-8 py-4 text-right font-black text-slate-950 font-display">
                   {row.avg_price}
                 </td>
               </tr>

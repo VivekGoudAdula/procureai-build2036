@@ -217,7 +217,7 @@ const Settings = () => {
       {/* Main Grid: Navigation Sidebar & Two-Column Grid Setup */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
         {/* Navigation Sidebar Tabs - Left Span */}
-        <div className="xl:col-span-3 space-y-1 bg-white p-3 rounded-[1.5rem] border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
+        <div className="xl:col-span-3 flex flex-row xl:flex-col overflow-x-auto gap-1.5 space-y-0 xl:space-y-1 bg-white p-2.5 sm:p-3 rounded-[1.5rem] border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.02)] no-scrollbar">
           {[
             { id: 'profile', name: 'Profile', icon: User, desc: 'Enterprise Identity details' },
             { id: 'ai', name: 'AI Config', icon: Cpu, desc: 'Autonomous negotiation bots' },
@@ -230,9 +230,9 @@ const Settings = () => {
                 key={item.id}
                 onClick={() => setActiveTab(item.id as SettingsTab)}
                 className={cn(
-                  "w-full flex flex-col items-start gap-1 px-4 py-3 rounded-xl text-left transition-all relative",
+                  "w-auto xl:w-full shrink-0 flex flex-col items-start gap-1 px-4 py-2.5 sm:py-3 rounded-xl text-left transition-all relative cursor-pointer",
                   isActive 
-                    ? "bg-slate-950 text-white border-l-4 border-blue-500 font-bold shadow-md" 
+                    ? "bg-slate-950 text-white border-l-0 xl:border-l-4 border-b-2 xl:border-b-0 border-blue-500 font-bold shadow-md" 
                     : "text-slate-500 hover:text-slate-950 hover:bg-slate-50"
                 )}
               >

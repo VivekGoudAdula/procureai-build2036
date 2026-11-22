@@ -551,15 +551,15 @@ const Analytics = () => {
             </div>
           </CardHeader>
           <CardContent className="p-0 flex-1">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto min-w-0">
+              <table className="w-full text-left border-collapse min-w-[600px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-50/30">
-                    <th className="py-4 px-8 font-black">Region</th>
-                    <th className="py-4 px-6 font-black text-center">Active Suppliers</th>
-                    <th className="py-4 px-6 font-black text-center">Avg Savings</th>
-                    <th className="py-4 px-6 font-black text-center">Avg Lead Time</th>
-                    <th className="py-4 px-8 font-black text-right">Trust Rating</th>
+                    <th className="py-3 px-4 sm:px-6 font-black">Region</th>
+                    <th className="py-3 px-4 sm:px-6 font-black text-center">Active Suppliers</th>
+                    <th className="py-3 px-4 sm:px-6 font-black text-center">Avg Savings</th>
+                    <th className="py-3 px-4 sm:px-6 font-black text-center">Avg Lead Time</th>
+                    <th className="py-3 px-4 sm:px-6 font-black text-right">Trust Rating</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -613,15 +613,15 @@ const Analytics = () => {
             </div>
           </CardHeader>
           <CardContent className="p-0 flex-1">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto min-w-0">
+              <table className="w-full text-left border-collapse min-w-[600px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-50/30">
-                    <th className="py-4 px-8 font-black">Category</th>
-                    <th className="py-4 px-6 font-black text-center">Avg Savings</th>
-                    <th className="py-4 px-6 font-black text-center">Supplier Count</th>
-                    <th className="py-4 px-6 font-black text-center">Fulfillment Rate</th>
-                    <th className="py-4 px-8 font-black text-right">Avg MOQ</th>
+                    <th className="py-3 px-4 sm:px-6 font-black">Category</th>
+                    <th className="py-3 px-4 sm:px-6 font-black text-center">Avg Savings</th>
+                    <th className="py-3 px-4 sm:px-6 font-black text-center">Supplier Count</th>
+                    <th className="py-3 px-4 sm:px-6 font-black text-center">Fulfillment Rate</th>
+                    <th className="py-3 px-4 sm:px-6 font-black text-right">Avg MOQ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">

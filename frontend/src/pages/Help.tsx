@@ -36,9 +36,9 @@ const Help = () => {
   ];
 
   return (
-    <div className="space-y-12 max-w-5xl">
+    <div className="space-y-12 max-w-5xl mx-auto">
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-display font-bold tracking-tight">How can we help?</h1>
+        <h1 className="text-[clamp(1.5rem,2.5vw,2.25rem)] font-display font-bold tracking-tight">How can we help?</h1>
         <p className="text-foreground/60 max-w-xl mx-auto">Search our documentation or contact our support team for assistance with your autonomous commerce journey.</p>
         <div className="relative group max-w-2xl mx-auto mt-8">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/40 w-6 h-6 group-focus-within:text-primary transition-colors" />
