@@ -1,28 +1,20 @@
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import FloatingDockMenu from './FloatingDockMenu';
 import Topbar from './Topbar';
 import { useApp } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 
+/**
+ * Base application layout shell with top navigation, dynamic page content,
+ * and a permanently accessible bottom floating dock.
+ */
 const Layout = () => {
   const { user } = useApp();
-  const [dockVisible, setDockVisible] = useState(true);
-  const lastScrollTop = useRef(0);
 
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-
-  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
-    const currentScrollTop = e.currentTarget.scrollTop;
-    if (currentScrollTop > lastScrollTop.current + 15 && currentScrollTop > 60) {
-      setDockVisible(false);
-    } else if (currentScrollTop < lastScrollTop.current - 10 || currentScrollTop <= 60) {
-      setDockVisible(true);
-    }
-    lastScrollTop.current = currentScrollTop;
-  };
 
   return (
     <div className="flex h-dvh min-h-dvh bg-background text-foreground overflow-hidden w-full max-w-full">
@@ -35,10 +27,7 @@ const Layout = () => {
       <div className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
         <Topbar />
         
-        <main 
-          onScroll={handleScroll}
-          className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8 pb-32 sm:pb-36 min-w-0 w-full"
-        >
+        <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8 pb-32 sm:pb-36 min-w-0 w-full">
           <div className="max-w-[1400px] mx-auto min-w-0 w-full">
             <AnimatePresence mode="wait">
               <motion.div
@@ -56,7 +45,7 @@ const Layout = () => {
         </main>
       </div>
 
-      <FloatingDockMenu visible={dockVisible} />
+      <FloatingDockMenu />
     </div>
   );
 };
