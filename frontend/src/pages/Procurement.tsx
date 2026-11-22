@@ -1468,100 +1468,102 @@ const Procurement = () => {
 
   return (
     <div className="space-y-5 min-h-[calc(100dvh-5rem)] w-full max-w-7xl mx-auto text-slate-900 pb-12">
-      {/* HEADER SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-[clamp(1.25rem,2vw,1.75rem)] font-display font-bold tracking-tight text-slate-900 leading-tight">
+      {/* HEADER & TIMELINE UNIFIED BAR */}
+      <div className="w-full bg-white border border-slate-200 rounded-2xl p-3 sm:py-3 sm:px-4 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        {/* Left Title Block */}
+        <div className="min-w-0 shrink-0 xl:max-w-[280px] 2xl:max-w-xs">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h1 className="text-base sm:text-lg font-display font-bold tracking-tight text-slate-900 leading-tight">
               AI Procurement Intelligence
             </h1>
-            <div className="inline-flex items-center gap-1.5 shrink-0">
-              <Badge className="bg-amber-50 text-amber-700 border border-amber-200/60 text-[8px] font-black uppercase tracking-wider py-0.5">
+            <div className="inline-flex items-center gap-1 shrink-0">
+              <Badge className="bg-amber-50 text-amber-700 border border-amber-200/60 text-[7px] font-black uppercase tracking-wider py-0 px-1.5 h-4">
                 Trade Assurance
               </Badge>
-              <Badge className="bg-primary/10 text-primary border border-primary/20 text-[8px] font-black uppercase tracking-wider py-0.5">
+              <Badge className="bg-primary/10 text-primary border border-primary/20 text-[7px] font-black uppercase tracking-wider py-0 px-1.5 h-4">
                 Escrow Protected
               </Badge>
             </div>
           </div>
-          <p className="text-slate-500 mt-0.5 font-medium text-xs truncate">Enterprise copilot for global cross-border sourcing & verified settlement.</p>
+          <p className="text-slate-500 font-medium text-[11px] truncate mt-0.5">
+            Enterprise copilot for global cross-border sourcing & verified settlement.
+          </p>
         </div>
-      </div>
 
-      {/* TIMELINE PROGRESSION BAR */}
-      <div className="w-full bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm overflow-x-auto no-scrollbar">
-        <div className="flex items-center justify-between min-w-[540px] md:min-w-0">
-          {[
-            { label: 'Discovery', desc: 'AI Global Sourcing', stepValue: 'form' },
-            { label: 'Negotiation', desc: 'Multi-Lingual Engine', stepValue: 'intelligence_dashboard' },
-            { label: 'Approval', desc: 'Shortlist Partnership', stepValue: 'communication' },
-            { label: 'Commitment', desc: 'Escrow Lock', stepValue: 'escrow_locked' },
-            { label: 'Verification', desc: 'Delivery Proof', stepValue: 'escrow_locked' },
-            { label: 'Settlement', desc: 'Fund Release', stepValue: 'payment' }
-          ].map((tStep, idx) => {
-            const currentIdx =
-              (step === 'form' || step === 'intelligence_loading') ? 0 :
-              (step === 'intelligence_dashboard') ? 1 :
-              (step === 'communication') ? 2 :
-              (step === 'escrow_locked' && !isVerified) ? 3 :
-              (step === 'escrow_locked' && isVerified) ? 4 :
-              (step === 'payment') ? 5 : 0;
+        {/* Right Timeline Progression Bar */}
+        <div className="flex-1 min-w-0 overflow-x-auto no-scrollbar xl:max-w-2xl 2xl:max-w-3xl">
+          <div className="flex items-center justify-between min-w-[500px] md:min-w-0">
+            {[
+              { label: 'Discovery', stepValue: 'form' },
+              { label: 'Negotiation', stepValue: 'intelligence_dashboard' },
+              { label: 'Approval', stepValue: 'communication' },
+              { label: 'Commitment', stepValue: 'escrow_locked' },
+              { label: 'Verification', stepValue: 'escrow_locked' },
+              { label: 'Settlement', stepValue: 'payment' }
+            ].map((tStep, idx) => {
+              const currentIdx =
+                (step === 'form' || step === 'intelligence_loading') ? 0 :
+                (step === 'intelligence_dashboard') ? 1 :
+                (step === 'communication') ? 2 :
+                (step === 'escrow_locked' && !isVerified) ? 3 :
+                (step === 'escrow_locked' && isVerified) ? 4 :
+                (step === 'payment') ? 5 : 0;
 
-            const isCompleted = idx < currentIdx;
-            const isActive = idx === currentIdx;
+              const isCompleted = idx < currentIdx;
+              const isActive = idx === currentIdx;
 
-            const handleStepClick = () => {
-              // Allow navigation to any completed step or current step
-              if (isCompleted || isActive) {
-                // Restore necessary state for each step
-                if (tStep.stepValue === 'form') {
-                  setStep('form');
-                } else if (tStep.stepValue === 'intelligence_dashboard' && intelligenceResult) {
-                  setStep('intelligence_dashboard');
-                } else if (tStep.stepValue === 'communication' && selectedSupplierForComm) {
-                  setStep('communication');
-                } else if (tStep.stepValue === 'escrow_locked' && txId) {
-                  setStep('escrow_locked');
-                } else if (tStep.stepValue === 'payment' && txId) {
-                  setStep('payment');
+              const handleStepClick = () => {
+                // Allow navigation to any completed step or current step
+                if (isCompleted || isActive) {
+                  // Restore necessary state for each step
+                  if (tStep.stepValue === 'form') {
+                    setStep('form');
+                  } else if (tStep.stepValue === 'intelligence_dashboard' && intelligenceResult) {
+                    setStep('intelligence_dashboard');
+                  } else if (tStep.stepValue === 'communication' && selectedSupplierForComm) {
+                    setStep('communication');
+                  } else if (tStep.stepValue === 'escrow_locked' && txId) {
+                    setStep('escrow_locked');
+                  } else if (tStep.stepValue === 'payment' && txId) {
+                    setStep('payment');
+                  }
                 }
-              }
-            };
+              };
 
-            return (
-              <React.Fragment key={idx}>
-                <div
-                  className={cn(
-                    "flex flex-col items-center flex-1 relative cursor-pointer px-1",
-                    (isCompleted || isActive) ? "hover:scale-105 transition-transform" : "cursor-not-allowed opacity-50"
-                  )}
-                  onClick={handleStepClick}
-                >
-                  <div className={cn(
-                    "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs transition-all duration-300",
-                    isCompleted ? "bg-emerald-500 text-white shadow-md shadow-emerald-100" :
-                    isActive ? "bg-primary text-white ring-4 ring-primary/20 scale-105 shadow-md shadow-primary/10" :
-                    "bg-slate-100 text-slate-400 border border-slate-200"
-                  )}>
-                    {isCompleted ? <Check className="w-3.5 h-3.5" /> : idx + 1}
-                  </div>
-                  <span className={cn(
-                    "text-[9px] sm:text-[10px] font-black uppercase tracking-wider mt-2 text-center",
-                    isActive ? "text-primary" : "text-slate-800"
-                  )}>{tStep.label}</span>
-                  <span className="text-[8px] text-slate-400 font-bold text-center mt-0.5 hidden xl:block max-w-[100px] truncate">{tStep.desc}</span>
-                </div>
-                {idx < 5 && (
-                  <div className="flex-1 h-0.5 max-w-[40px] sm:max-w-[50px] self-start mt-3.5 sm:mt-4 bg-slate-100 relative overflow-hidden">
+              return (
+                <React.Fragment key={idx}>
+                  <div
+                    className={cn(
+                      "flex flex-col items-center flex-1 relative cursor-pointer px-0.5",
+                      (isCompleted || isActive) ? "hover:scale-105 transition-transform" : "cursor-not-allowed opacity-50"
+                    )}
+                    onClick={handleStepClick}
+                  >
                     <div className={cn(
-                      "absolute inset-y-0 left-0 transition-all duration-700 bg-gradient-to-r from-violet-600 to-indigo-500",
-                      isCompleted ? "w-full" : "w-0"
-                    )} />
+                      "w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center font-bold text-[10px] sm:text-xs transition-all duration-300",
+                      isCompleted ? "bg-emerald-500 text-white shadow-xs shadow-emerald-200" :
+                      isActive ? "bg-primary text-white ring-2 ring-primary/20 scale-105 shadow-xs shadow-primary/20" :
+                      "bg-slate-100 text-slate-400 border border-slate-200"
+                    )}>
+                      {isCompleted ? <Check className="w-3 h-3" /> : idx + 1}
+                    </div>
+                    <span className={cn(
+                      "text-[8px] sm:text-[9px] font-black uppercase tracking-wider mt-1 text-center whitespace-nowrap",
+                      isActive ? "text-primary" : "text-slate-700"
+                    )}>{tStep.label}</span>
                   </div>
-                )}
-              </React.Fragment>
-            );
-          })}
+                  {idx < 5 && (
+                    <div className="flex-1 h-0.5 max-w-[32px] sm:max-w-[44px] self-start mt-3 sm:mt-3.5 bg-slate-100 relative overflow-hidden shrink-0">
+                      <div className={cn(
+                        "absolute inset-y-0 left-0 transition-all duration-500 bg-gradient-to-r from-violet-600 to-indigo-500",
+                        isCompleted ? "w-full" : "w-0"
+                      )} />
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
         </div>
       </div>
 
