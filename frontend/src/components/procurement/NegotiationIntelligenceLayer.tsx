@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Package, 
   Truck, 
-  DollarSign, 
+  IndianRupee, 
   Shield, 
   AlertTriangle, 
   Cpu, 
@@ -192,7 +192,7 @@ const NegotiationIntelligenceLayer: React.FC<NegotiationIntelligenceLayerProps> 
           colorClass={getStatusColor(data.delivery_confidence.status)}
         />
         <SignalCard 
-          icon={<DollarSign className="w-6 h-6" />}
+          icon={<IndianRupee className="w-6 h-6" />}
           label="Pricing Signals"
           status={data.pricing_signals.status}
           summary={data.pricing_signals.summary}

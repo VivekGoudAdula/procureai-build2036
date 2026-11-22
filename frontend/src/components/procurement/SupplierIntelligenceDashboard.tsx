@@ -45,7 +45,7 @@ const generateMockSupplier = (base: any, index: number) => ({
   product_title: base?.product_title || base?.product || 'Industrial Goods',
   base_price: base?.base_price ? Math.round(base.base_price * (1 + index * 0.05)) : 100,
   negotiated_price: base?.negotiated_price ? Math.round(base.negotiated_price * (1 + index * 0.05)) : (base?.base_price || 95),
-  price_formatted: `$${base?.negotiated_price ? Math.round(base.negotiated_price * (1 + index * 0.05)) : 95}.00`,
+  price_formatted: `₹${(base?.negotiated_price ? Math.round(base.negotiated_price * (1 + index * 0.05)) : (base?.base_price || 95)).toLocaleString('en-IN')}`,
   trust_score: Math.max(70, (base?.trust_score || 95) - index * 5),
   reliability_score: Math.max(70, 95 - index * 5),
   success_rate: Math.max(75, 96 - index * 4),

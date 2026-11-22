@@ -13,7 +13,7 @@ import {
   TrendingDown,
   ExternalLink,
   ChevronRight,
-  DollarSign,
+  IndianRupee,
   Layers,
   Clock,
   Lock,
@@ -537,7 +537,7 @@ const Procurement = () => {
       selectedSupplier: selected,
       negotiationLogs: [
         { role: 'agent', message: "System scan complete. Evaluating candidates..." },
-        { role: 'supplier', message: `Best offer: $${supplier.negotiated_price} per unit.` }
+        { role: 'supplier', message: `Best offer: ₹${(supplier.negotiated_price || 0).toLocaleString('en-IN')} per unit.` }
       ]
     });
 
@@ -723,7 +723,7 @@ const Procurement = () => {
         supplier_name: selectedSupplierForComm.name,
         supplier_email: selectedSupplierForComm.email || "supplier@example.com",
         supplier_region: selectedSupplierForComm.country || selectedSupplierForComm.region || shippingRegion || "Global",
-        original_message: `Procurement inquiry for ${quantity || 0} units of ${productName || 'goods'}. Budget: $${budget || 0}. Lead time: ${leadTime || 'Immediate'}. ${customRequirements || ''}`.trim(),
+        original_message: `Procurement inquiry for ${quantity || 0} units of ${productName || 'goods'}. Budget: ₹${(budget || 0).toLocaleString('en-IN')}. Lead time: ${leadTime || 'Immediate'}. ${customRequirements || ''}`.trim(),
         procurement_context: {
           product: productName || 'goods',
           quantity: quantity || 0,
@@ -1605,13 +1605,13 @@ const Procurement = () => {
                 </div>
 
                 <div className="w-full lg:w-40 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 h-12">
-                  <DollarSign className="w-4 h-4 text-slate-400" />
+                  <IndianRupee className="w-4 h-4 text-slate-400" />
                   <input
                     type="number"
                     min="1"
                     required
                     className="bg-transparent border-none outline-none text-slate-900 w-full text-sm font-medium placeholder-slate-400"
-                    placeholder="Budget"
+                    placeholder="Budget (₹)"
                     value={budget || ''}
                     onChange={(e) => setBudget(parseInt(e.target.value) || 0)}
                   />
@@ -2097,7 +2097,7 @@ const Procurement = () => {
                 <div className="p-3 bg-slate-900 text-white rounded-xl space-y-2">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400">Unit Price:</span>
-                    <span className="font-bold">${selectedSupplierForComm.negotiated_price || selectedSupplierForComm.base_price || 0}</span>
+                    <span className="font-bold">₹{(selectedSupplierForComm.negotiated_price || selectedSupplierForComm.base_price || 0).toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400">Total Quantity:</span>
@@ -2106,7 +2106,7 @@ const Procurement = () => {
                   <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-800">
                     <span className="text-slate-300 font-semibold">Total Escrow Value:</span>
                     <span className="text-emerald-400 font-bold">
-                      ${(((selectedSupplierForComm.negotiated_price || selectedSupplierForComm.base_price || 0) * (Number(quantity) || 1))).toLocaleString()}
+                      ₹{(((selectedSupplierForComm.negotiated_price || selectedSupplierForComm.base_price || 0) * (Number(quantity) || 1))).toLocaleString('en-IN')}
                     </span>
                   </div>
                 </div>
@@ -2180,7 +2180,7 @@ const Procurement = () => {
                     </div>
                     <div>
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Negotiated Price</p>
-                      <p className="text-sm font-bold text-emerald-600">${result?.selectedSupplier?.finalPrice}</p>
+                      <p className="text-sm font-bold text-emerald-600">₹{result?.selectedSupplier?.finalPrice ? Number(result.selectedSupplier.finalPrice).toLocaleString('en-IN') : 0}</p>
                     </div>
                     <div>
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Expected Lead Time</p>

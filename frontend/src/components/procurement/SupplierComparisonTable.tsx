@@ -233,7 +233,7 @@ const SupplierComparisonTable: React.FC<SupplierComparisonTableProps> = ({ suppl
                     )}
                   </td>
                   <td className="py-3 px-3 text-right">
-                    <span className="text-xs font-bold text-slate-900 font-mono">${s.negotiated_price.toLocaleString()}</span>
+                    <span className="text-xs font-bold text-slate-900 font-mono">₹{s.negotiated_price.toLocaleString('en-IN')}</span>
                   </td>
                   <td className="py-3 px-5 text-center">
                     <Button 

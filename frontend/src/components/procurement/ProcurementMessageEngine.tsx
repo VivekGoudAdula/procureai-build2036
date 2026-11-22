@@ -172,7 +172,7 @@ const ProcurementMessageEngine: React.FC<ProcurementMessageEngineProps> = ({ int
                   </div>
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Price Pt.</span>
-                    <p className="text-sm font-bold text-emerald-600">${intent.budget}</p>
+                    <p className="text-sm font-bold text-emerald-600">₹{intent.budget ? Number(intent.budget).toLocaleString('en-IN') : 0}</p>
                   </div>
                 </div>
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">

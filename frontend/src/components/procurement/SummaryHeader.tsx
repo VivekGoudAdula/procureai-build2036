@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Layers, 
-  DollarSign, 
+  IndianRupee, 
   Clock, 
   Globe, 
   Shield, 
@@ -52,7 +52,7 @@ const SummaryHeader: React.FC<SummaryHeaderProps> = ({ details, analysis }) => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-8 bg-slate-900/50 backdrop-blur-sm p-6 rounded-2xl border border-slate-800 shadow-xl">
           <div className="space-y-1">
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Target Budget</p>
-            <p className="text-lg font-black text-emerald-500">${details.budget.toLocaleString()}</p>
+            <p className="text-lg font-black text-emerald-500">₹{details.budget.toLocaleString('en-IN')}</p>
           </div>
           <div className="space-y-1">
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Policy Engine</p>

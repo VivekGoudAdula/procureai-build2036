@@ -98,7 +98,7 @@ const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
                     <div className="text-right shrink-0">
                       <div className="flex items-baseline justify-end gap-0.5">
                         <span className="text-xl font-display font-black tracking-tighter bg-gradient-to-r from-blue-600 to-emerald-500 bg-clip-text text-transparent">
-                          ${rec.negotiated_price || rec.base_price || 0}
+                          ₹{(rec.negotiated_price || rec.base_price || 0).toLocaleString('en-IN')}
                         </span>
                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">/U</span>
                       </div>

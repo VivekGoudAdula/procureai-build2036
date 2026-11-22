@@ -163,12 +163,13 @@ class AlibabaProcurementService:
         # Extract Price & MOQ
         sku_def = item.get("sku", {}).get("def", {})
         price_module = sku_def.get("priceModule", {})
-        price_formatted = price_module.get("priceFormatted", "$10.00")
         
         try:
-            price_val = float(price_module.get("price", "10").split("-")[0].replace("$", "").replace(",", ""))
+            price_val = float(price_module.get("price", "10").split("-")[0].replace("$", "").replace("₹", "").replace(",", ""))
         except:
             price_val = 10.0
+
+        price_formatted = f"₹{int(price_val):,}" if price_val.is_integer() else f"₹{price_val:,.2f}"
 
         moq_module = sku_def.get("quantityModule", {}).get("minOrder", {})
         moq_formatted = moq_module.get("quantityFormatted", "1 piece")
