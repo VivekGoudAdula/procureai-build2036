@@ -211,7 +211,9 @@ def build_rfq_pdf(data: Dict[str, Any]) -> bytes:
 
     budget_raw = data.get("budget", 0)
     formatted_budget = f"{currency_symbol}{format_indian_currency(budget_raw)}"
-    product_name = data.get("product", "Unspecified Material")
+    product_name = data.get("product") or data.get("product_name") or "Industrial Machinery & Components"
+    if str(product_name).strip().lower() in ["goods", "unspecified material", "none", ""]:
+        product_name = data.get("product_name") or "Industrial Machinery & Components"
     quantity = data.get("quantity", 1)
     lead_time = data.get("lead_time", "Standard")
     delivery_loc = data.get("delivery_location", "Domestic India (Ex-Works / Delivery at Place)")

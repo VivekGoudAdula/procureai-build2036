@@ -18,14 +18,27 @@ const steps = [
   { id: 4, text: "Optimizing negotiated pricing via AI agents...", icon: Zap, color: "text-amber-500" }
 ];
 
-const IntelligenceLoading: React.FC = () => {
+interface IntelligenceLoadingProps {
+  onCancel?: () => void;
+}
+
+const IntelligenceLoading: React.FC<IntelligenceLoadingProps> = ({ onCancel }) => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [showFallback, setShowFallback] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentStep(prev => (prev < steps.length - 1 ? prev + 1 : prev));
-    }, 1500);
-    return () => clearInterval(interval);
+    }, 1200);
+
+    const timeout = setTimeout(() => {
+      setShowFallback(true);
+    }, 6000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
   }, []);
 
   return (
@@ -100,9 +113,20 @@ const IntelligenceLoading: React.FC = () => {
         </div>
       </div>
 
-      <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
-        Connecting to Alibaba DataHub & Global Logistics Registry
-      </p>
+      <div className="space-y-3">
+        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
+          Connecting to Alibaba DataHub & Global Logistics Registry
+        </p>
+        {(showFallback || onCancel) && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-xs font-semibold text-slate-500 hover:text-slate-800 underline transition-colors cursor-pointer"
+          >
+            Taking longer than expected? Return to search
+          </button>
+        )}
+      </div>
     </div>
   );
 };

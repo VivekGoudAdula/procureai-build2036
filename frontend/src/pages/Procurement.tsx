@@ -146,7 +146,11 @@ const Procurement = () => {
 
   // State Persistence Logic ( survives page reloads )
   const [step, setStep] = useState<'form' | 'intelligence_loading' | 'intelligence_dashboard' | 'communication' | 'escrow_locked' | 'payment'>(() => {
-    return (sessionStorage.getItem('procureai_step') as any) || 'form';
+    const saved = sessionStorage.getItem('procureai_step');
+    if (saved === 'intelligence_loading') {
+      return sessionStorage.getItem('procureai_intelligence') ? 'intelligence_dashboard' : 'form';
+    }
+    return (saved as any) || 'form';
   });
   const [intelligenceResult, setIntelligenceResult] = useState<IntelligenceResult | null>(() => {
     const saved = sessionStorage.getItem('procureai_intelligence');
@@ -249,7 +253,8 @@ const Procurement = () => {
 
   // Sync state to session storage
   useEffect(() => {
-    sessionStorage.setItem('procureai_step', step);
+    const safeStep = step === 'intelligence_loading' ? (intelligenceResult ? 'intelligence_dashboard' : 'form') : step;
+    sessionStorage.setItem('procureai_step', safeStep);
     if (productName) sessionStorage.setItem('procureai_productName', productName);
     sessionStorage.setItem('procureai_quantity', quantity.toString());
     sessionStorage.setItem('procureai_budget', budget.toString());
@@ -445,6 +450,7 @@ const Procurement = () => {
     setProcurementLogs([]);
 
     try {
+      const token = localStorage.getItem('procureai_token') || localStorage.getItem('access_token') || localStorage.getItem('token');
       // 1. Run Global Intelligence Scan
       const response = await axios.post(`${API_BASE_URL}/api/procurement/intelligence`, {
         product_name: productName,
@@ -457,19 +463,20 @@ const Procurement = () => {
           min_success_rate: minSuccessRate,
           require_verified: requireVerified
         } : null
+      }, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
 
       setIntelligenceResult(response.data);
       
-      // 2. Stream Intelligence Logs
+      // 2. Stream Intelligence Logs smoothly
       const intelLogs = response.data.logs || [];
       for (const log of intelLogs) {
-        await new Promise(res => setTimeout(res, 400));
+        await new Promise(res => setTimeout(res, 80));
         setProcurementLogs(prev => [...prev, log]);
       }
       
-      // Small final buffer
-      await new Promise(res => setTimeout(res, 1000));
+      await new Promise(res => setTimeout(res, 250));
 
       setShowTerminal(true);
       setStep('intelligence_dashboard');
@@ -535,21 +542,25 @@ const Procurement = () => {
     });
 
     const resolvedProduct = (productName && productName.trim())
+      || (supplier.product && String(supplier.product).trim())
+      || (supplier.product_title && String(supplier.product_title).trim())
+      || (supplier.product_name && String(supplier.product_name).trim())
       || sessionStorage.getItem('procureai_productName')
-      || supplier.product
-      || supplier.product_name
       || (intelligenceResult as any)?.product_name
+      || (intelligenceResult as any)?.product
       || (intelligenceResult as any)?.procurement_analysis?.product
       || "Industrial Automation Equipment";
 
     if (!productName && resolvedProduct) {
       setProductName(resolvedProduct);
+      sessionStorage.setItem('procureai_productName', resolvedProduct);
     }
 
     const supplierWithContext = {
       ...supplier,
       product: resolvedProduct,
       product_name: resolvedProduct,
+      product_title: supplier.product_title || resolvedProduct,
       email: supplier.email || `contact@${(supplier.name || 'supplier').toLowerCase().replace(/[^a-z0-9]/g, '')}.com`
     };
     setSelectedSupplierForComm(supplierWithContext);
@@ -599,10 +610,12 @@ const Procurement = () => {
       const supplierEmail = selectedSupplierForComm.email || `contact@${supplierName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
       const supplierRegion = selectedSupplierForComm.region || selectedSupplierForComm.country || shippingRegion || "Global";
       const product = (productName && productName.trim())
-        || (selectedSupplierForComm.product_name && selectedSupplierForComm.product_name.trim())
-        || (selectedSupplierForComm.product && selectedSupplierForComm.product.trim())
+        || (selectedSupplierForComm.product && String(selectedSupplierForComm.product).trim())
+        || (selectedSupplierForComm.product_title && String(selectedSupplierForComm.product_title).trim())
+        || (selectedSupplierForComm.product_name && String(selectedSupplierForComm.product_name).trim())
         || sessionStorage.getItem('procureai_productName')
         || (intelligenceResult as any)?.product_name
+        || (intelligenceResult as any)?.product
         || (intelligenceResult as any)?.procurement_analysis?.product
         || "Industrial Automation Equipment";
       const qty = Number(quantity) || 1;
@@ -1454,22 +1467,30 @@ const Procurement = () => {
   };
 
   return (
-    <div className="space-y-6 min-h-[calc(100vh-2rem)] bg-slate-50 p-6 -mx-4 md:-mx-8 lg:-mx-12 -mt-4 text-slate-900">
+    <div className="space-y-5 min-h-[calc(100dvh-5rem)] w-full max-w-7xl mx-auto text-slate-900 pb-12">
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-1 max-w-7xl mx-auto">
-        <div>
-          <h1 className="text-3xl font-display font-bold tracking-tight text-slate-900">AI Procurement Intelligence</h1>
-          <p className="text-slate-500 mt-1.5 font-medium text-xs">Enterprise copilot for global sourcing.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge className="bg-amber-50 text-amber-600 border-none text-[8px] font-black uppercase tracking-widest">Trade Assurance</Badge>
-          <Badge className="bg-primary/10 text-primary border-none text-[8px] font-black uppercase tracking-widest">Escrow Protected</Badge>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-[clamp(1.25rem,2vw,1.75rem)] font-display font-bold tracking-tight text-slate-900 leading-tight">
+              AI Procurement Intelligence
+            </h1>
+            <div className="inline-flex items-center gap-1.5 shrink-0">
+              <Badge className="bg-amber-50 text-amber-700 border border-amber-200/60 text-[8px] font-black uppercase tracking-wider py-0.5">
+                Trade Assurance
+              </Badge>
+              <Badge className="bg-primary/10 text-primary border border-primary/20 text-[8px] font-black uppercase tracking-wider py-0.5">
+                Escrow Protected
+              </Badge>
+            </div>
+          </div>
+          <p className="text-slate-500 mt-0.5 font-medium text-xs truncate">Enterprise copilot for global cross-border sourcing & verified settlement.</p>
         </div>
       </div>
 
       {/* TIMELINE PROGRESSION BAR */}
-      <div className="max-w-7xl mx-auto bg-white border border-slate-200 rounded-[1.5rem] p-5 shadow-sm">
-        <div className="flex items-center justify-between">
+      <div className="w-full bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm overflow-x-auto no-scrollbar">
+        <div className="flex items-center justify-between min-w-[540px] md:min-w-0">
           {[
             { label: 'Discovery', desc: 'AI Global Sourcing', stepValue: 'form' },
             { label: 'Negotiation', desc: 'Multi-Lingual Engine', stepValue: 'intelligence_dashboard' },
@@ -1511,27 +1532,27 @@ const Procurement = () => {
               <React.Fragment key={idx}>
                 <div
                   className={cn(
-                    "flex flex-col items-center flex-1 relative cursor-pointer",
+                    "flex flex-col items-center flex-1 relative cursor-pointer px-1",
                     (isCompleted || isActive) ? "hover:scale-105 transition-transform" : "cursor-not-allowed opacity-50"
                   )}
                   onClick={handleStepClick}
                 >
                   <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-all duration-500",
-                    isCompleted ? "bg-emerald-500 text-white shadow-lg shadow-emerald-100" :
-                    isActive ? "bg-primary text-white ring-4 ring-primary/20 scale-110 shadow-lg shadow-primary/10" :
+                    "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs transition-all duration-300",
+                    isCompleted ? "bg-emerald-500 text-white shadow-md shadow-emerald-100" :
+                    isActive ? "bg-primary text-white ring-4 ring-primary/20 scale-105 shadow-md shadow-primary/10" :
                     "bg-slate-100 text-slate-400 border border-slate-200"
                   )}>
-                    {isCompleted ? <Check className="w-4 h-4" /> : idx + 1}
+                    {isCompleted ? <Check className="w-3.5 h-3.5" /> : idx + 1}
                   </div>
                   <span className={cn(
-                    "text-[10px] font-black uppercase tracking-wider mt-3",
+                    "text-[9px] sm:text-[10px] font-black uppercase tracking-wider mt-2 text-center",
                     isActive ? "text-primary" : "text-slate-800"
                   )}>{tStep.label}</span>
-                  <span className="text-[8px] text-slate-400 font-bold text-center mt-1 hidden md:block max-w-[120px]">{tStep.desc}</span>
+                  <span className="text-[8px] text-slate-400 font-bold text-center mt-0.5 hidden xl:block max-w-[100px] truncate">{tStep.desc}</span>
                 </div>
                 {idx < 5 && (
-                  <div className="flex-1 h-0.5 max-w-[60px] self-start mt-4 bg-slate-100 relative overflow-hidden">
+                  <div className="flex-1 h-0.5 max-w-[40px] sm:max-w-[50px] self-start mt-3.5 sm:mt-4 bg-slate-100 relative overflow-hidden">
                     <div className={cn(
                       "absolute inset-y-0 left-0 transition-all duration-700 bg-gradient-to-r from-violet-600 to-indigo-500",
                       isCompleted ? "w-full" : "w-0"
@@ -1658,7 +1679,7 @@ const Procurement = () => {
             exit={{ opacity: 0 }}
             className="space-y-12"
           >
-            <IntelligenceLoading />
+            <IntelligenceLoading onCancel={() => setStep('form')} />
           </motion.div>
         )}
 
@@ -1727,12 +1748,12 @@ const Procurement = () => {
         </div>
 
         {/* 3-COLUMN ORIGINAL LAYOUT: Left (Inquiry & RFQ PDF), Center (Multilingual Chat), Right (Supplier Intel & Commit) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           
           {/* LEFT CARD (col-span-4): Buyer Procurement Inquiry & RFQ PDF Generator */}
-          <div className="lg:col-span-4 space-y-6">
-            <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
-              <CardHeader className="bg-slate-50/70 border-b border-slate-100 flex flex-row items-center justify-between py-4">
+          <div className="lg:col-span-4 space-y-4">
+            <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white lg:max-h-[calc(100dvh-220px)] flex flex-col">
+              <CardHeader className="bg-slate-50/70 border-b border-slate-100 flex flex-row items-center justify-between py-3.5 px-4 shrink-0">
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-primary" />
                   <CardTitle className="text-sm font-bold text-slate-900">
@@ -1750,7 +1771,7 @@ const Procurement = () => {
                 )}
               </CardHeader>
 
-              <CardContent className="p-5 space-y-5">
+              <CardContent className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto min-h-0">
                 {/* Target Supplier Specs */}
                 <div className="space-y-3 p-3.5 bg-slate-50 border border-slate-100 rounded-xl text-xs">
                   <div className="flex justify-between items-center">
@@ -1769,8 +1790,13 @@ const Procurement = () => {
                     <span className="text-slate-600 font-semibold block text-[11px]">Item / Product Name:</span>
                     <Input
                       type="text"
-                      value={productName || selectedSupplierForComm.product_name || selectedSupplierForComm.product || ''}
-                      onChange={(e) => setProductName(e.target.value)}
+                      value={productName || selectedSupplierForComm?.product || selectedSupplierForComm?.product_name || selectedSupplierForComm?.product_title || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setProductName(val);
+                        sessionStorage.setItem('procureai_productName', val);
+                        setSelectedSupplierForComm((prev: any) => prev ? { ...prev, product: val, product_name: val, product_title: val } : prev);
+                      }}
                       placeholder="e.g. Industrial Automation Sensors..."
                       className="h-8 text-xs font-semibold bg-white border-slate-200 rounded-lg px-2.5"
                     />
@@ -1914,9 +1940,9 @@ const Procurement = () => {
           </div>
 
           {/* CENTER CARD (col-span-5): Multilingual Procurement Chat */}
-          <div className="lg:col-span-5 space-y-6">
-            <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden min-h-[540px] flex flex-col bg-white">
-              <CardHeader className="bg-slate-50/70 border-b border-slate-100 flex flex-row items-center justify-between py-3.5 px-4">
+          <div className="lg:col-span-5 space-y-4">
+            <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden min-h-[480px] lg:max-h-[calc(100dvh-220px)] flex flex-col bg-white">
+              <CardHeader className="bg-slate-50/70 border-b border-slate-100 flex flex-row items-center justify-between py-3 px-4 shrink-0">
                 <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900">
                   <Languages className="w-4 h-4 text-primary" /> Multilingual Chat
                 </CardTitle>
@@ -1935,9 +1961,9 @@ const Procurement = () => {
                   </select>
                 </div>
               </CardHeader>
-              <CardContent className="p-4 flex-1 flex flex-col justify-between">
+              <CardContent className="p-4 flex-1 flex flex-col justify-between overflow-hidden min-h-0">
                 {/* Chat Messages Area */}
-                <div className="flex-1 overflow-y-auto space-y-3 mb-4 max-h-[380px] pr-2">
+                <div className="flex-1 overflow-y-auto space-y-3 mb-3 pr-2 min-h-0">
                   {chatMessages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-3 py-12">
                       <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center">
@@ -1976,7 +2002,7 @@ const Procurement = () => {
                 </div>
 
                 {/* Chat Input Area */}
-                <div className="border-t border-slate-100 pt-3 space-y-2">
+                <div className="border-t border-slate-100 pt-3 space-y-2 shrink-0">
                   <div className="flex gap-2">
                     <div className="flex-1 relative">
                       <Input
@@ -2014,14 +2040,14 @@ const Procurement = () => {
           </div>
 
           {/* RIGHT CARD (col-span-3): Supplier Intelligence + Commit to Procurement */}
-          <div className="lg:col-span-3 space-y-6">
-            <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
-              <CardHeader className="bg-slate-50/70 border-b border-slate-100 py-3.5 px-4">
+          <div className="lg:col-span-3 space-y-4">
+            <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white lg:max-h-[calc(100dvh-220px)] flex flex-col">
+              <CardHeader className="bg-slate-50/70 border-b border-slate-100 py-3.5 px-4 shrink-0">
                 <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900">
                   <Activity className="w-4 h-4 text-primary" /> Supplier Intelligence
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="p-4 space-y-4 flex-1 overflow-y-auto min-h-0">
                 {/* Signals */}
                 <div className="space-y-2.5">
                   {[
@@ -2118,28 +2144,28 @@ const Procurement = () => {
             key="escrow_locked"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="max-w-3xl mx-auto"
+            className="max-w-4xl mx-auto w-full"
           >
             <Card className="bg-white border-slate-100 overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-[2rem] p-0">
-              <div className="bg-[#0A2540] pt-10 pb-8 px-8 text-center text-white relative">
+              <div className="bg-[#0A2540] py-5 px-6 text-center text-white relative">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-30 mix-blend-overlay" />
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", damping: 12 }}
-                  className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6 relative"
+                  className="w-11 h-11 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-3 relative"
                 >
                   <div className="absolute inset-0 rounded-full border border-amber-500/30 animate-[spin_4s_linear_infinite]" />
-                  <div className="w-14 h-14 bg-amber-500 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.5)]">
-                    <Lock className="w-7 h-7 text-white relative z-10" />
+                  <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.5)]">
+                    <Lock className="w-4 h-4 text-white relative z-10" />
                   </div>
                 </motion.div>
-                <h2 className="text-2xl font-display font-medium mb-2 tracking-tight">Secure Procurement Commitment</h2>
-                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 mb-4 font-bold tracking-widest px-4 py-1 uppercase text-[10px]">Proof Required</Badge>
+                <h2 className="text-[clamp(1.25rem,2vw,1.75rem)] font-display font-bold mb-1 tracking-tight">Secure Procurement Commitment</h2>
+                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 mb-2 font-bold tracking-widest px-3 py-0.5 uppercase text-[9px]">Proof Required</Badge>
                 <p className="text-slate-300 max-w-sm mx-auto font-medium text-xs leading-relaxed">Escrow-protected procurement settlement lifecycle</p>
               </div>
 
-              <CardContent className="p-8 space-y-8">
+              <CardContent className="p-5 sm:p-7 space-y-6">
                 {/* Enterprise Procurement Summary Panel */}
                 <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6">
                   <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -2660,25 +2686,25 @@ const Procurement = () => {
             key="payment"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="max-w-2xl mx-auto"
+            className="max-w-4xl mx-auto w-full"
           >
             <Card className="glass-card border-emerald-100 overflow-hidden shadow-xl shadow-emerald-100/50 p-0">
-              <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-10 text-center text-white relative">
+              <div className="bg-gradient-to-br from-emerald-500 to-teal-600 py-6 px-6 text-center text-white relative">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", damping: 12 }}
-                  className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-md border border-white/30"
+                  className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 backdrop-blur-md border border-white/30"
                 >
-                  <CheckCircle2 className="w-10 h-10" />
+                  <CheckCircle2 className="w-6 h-6 text-white" />
                 </motion.div>
-                <h2 className="text-2xl font-display font-bold mb-1">Procurement Commitment Secured</h2>
-                <Badge className="bg-white/20 text-white border-white/30 mb-3 hover:bg-white/20">Settled in Escrow</Badge>
+                <h2 className="text-[clamp(1.25rem,2vw,1.75rem)] font-display font-bold mb-1">Procurement Commitment Secured</h2>
+                <Badge className="bg-white/20 text-white border-white/30 mb-2 hover:bg-white/20 text-[9px] font-bold">Settled in Escrow</Badge>
                 <p className="text-emerald-50/80 max-w-sm mx-auto font-medium text-xs">Funds are held in escrow and released only after verified delivery. The procurement cycle is complete.</p>
               </div>
 
-              <CardContent className="p-8 space-y-6">
+              <CardContent className="p-5 sm:p-7 space-y-6">
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Supplier</span>

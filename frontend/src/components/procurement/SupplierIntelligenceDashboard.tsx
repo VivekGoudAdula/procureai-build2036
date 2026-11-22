@@ -40,14 +40,28 @@ interface SupplierIntelligenceDashboardProps {
 const generateMockSupplier = (base: any, index: number) => ({
   id: `MOCK-${Date.now()}-${index}`,
   name: base ? `${base.name || 'Verified Supplier'} (Partner ${index})` : `Global Sourcing Partner ${index}`,
-  product: base?.product || 'Industrial Goods',
+  product: base?.product || base?.product_title || 'Industrial Goods',
+  product_name: base?.product_name || base?.product_title || base?.product || 'Industrial Goods',
+  product_title: base?.product_title || base?.product || 'Industrial Goods',
   base_price: base?.base_price ? Math.round(base.base_price * (1 + index * 0.05)) : 100,
+  negotiated_price: base?.negotiated_price ? Math.round(base.negotiated_price * (1 + index * 0.05)) : (base?.base_price || 95),
+  price_formatted: `$${base?.negotiated_price ? Math.round(base.negotiated_price * (1 + index * 0.05)) : 95}.00`,
+  trust_score: Math.max(70, (base?.trust_score || 95) - index * 5),
   reliability_score: Math.max(70, 95 - index * 5),
   success_rate: Math.max(75, 96 - index * 4),
-  delivery_days: (base?.delivery_days || 7) + index * 2,
-  shipping_region: base?.shipping_region || 'Global',
+  lead_time_days: (base?.lead_time_days || base?.delivery_days || 7) + index * 2,
+  delivery_days: (base?.delivery_days || base?.lead_time_days || 7) + index * 2,
+  country: base?.country || base?.shipping_region || 'Global',
+  region: base?.region || base?.country || 'Global',
+  shipping_region: base?.shipping_region || base?.country || 'Global',
   total_deals: 50 - index * 8,
   score: Math.max(70, 92 - index * 6),
+  verified_supplier: true,
+  trade_assurance: true,
+  gold_status: true,
+  verified: true,
+  moq: base?.moq || 1,
+  moq_formatted: '1 piece'
 });
 
 const SupplierIntelligenceDashboard: React.FC<SupplierIntelligenceDashboardProps> = ({ 

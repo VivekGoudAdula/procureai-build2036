@@ -1764,7 +1764,13 @@ async def generate_rfq(request: Request, req: GenerateRFQRequest, current_user: 
     try:
         supplier_name = req.supplier_name or "Selected Supplier"
         supplier_id = str(req.supplier_id or supplier_name)
-        product = req.product or req.product_name or "Goods"
+        product = (req.product or req.product_name or "").strip()
+        if not product or product.lower() in ["goods", "unspecified material", "none"]:
+            s_lookup = suppliers_collection.find_one({"id": supplier_id}) or suppliers_collection.find_one({"name": supplier_name})
+            if s_lookup:
+                product = (s_lookup.get("product") or s_lookup.get("product_title") or s_lookup.get("product_name") or s_lookup.get("category") or "").strip()
+        if not product or product.lower() in ["goods", ""]:
+            product = "Industrial Machinery & Components"
         quantity = req.quantity or 1
         budget = req.budget if req.budget is not None else (req.budget_inr if req.budget_inr is not None else 0.0)
 

@@ -75,6 +75,7 @@ def _map_intelligence_supplier(s: Dict[str, Any], product_name: str) -> Dict[str
         "name": s.get("name", "Alibaba Supplier"),
         "category": s.get("category", "General"),
         "product": title,
+        "product_name": title,
         "product_title": title,
         "country": s.get("country", "China"),
         "region": s.get("region", s.get("country", "China")),

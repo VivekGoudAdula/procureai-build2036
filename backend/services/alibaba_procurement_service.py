@@ -189,7 +189,10 @@ class AlibabaProcurementService:
         return {
             "id": item_id,
             "name": supplier_name,
+            "product": title,
+            "product_name": title,
             "product_title": title,
+            "category": category,
             "product_image": img,
             "country": country,
             "region": country,
@@ -287,8 +290,11 @@ class AlibabaProcurementService:
         self._add_log("Procurement intelligence cycle complete.")
         
         return {
+            "product_name": query,
+            "product": query,
             "suppliers": all_suppliers,
             "recommended_supplier": recommended,
+            "recommended_suppliers": [recommended] if recommended else [],
             "rejected_suppliers": [],
             "procurement_analysis": analysis,
             "logs": self.logs
