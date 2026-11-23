@@ -73,9 +73,16 @@ if not allowed_origins:
     # Safe fallbacks for local development
     allowed_origins = ["http://localhost:3000", "http://localhost:5173"]
 
+# Allow Vercel preview/production deployments and local development via regex
+cors_regex = os.getenv(
+    "CORS_ORIGIN_REGEX",
+    r"^https:\/\/.*\.vercel\.app$|^http:\/\/localhost:\d+$"
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=cors_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
