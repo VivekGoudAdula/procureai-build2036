@@ -373,24 +373,24 @@ const ComparisonSection = () => {
 
 
 
-// --- Section 7: Business Impact ---
+// --- Section 7: Business Goals ---
 const ImpactSection = () => {
   const metrics = [
-    { label: "Reduce supplier discovery time", val: "90% Reduction", sub: "From 14 days down to seconds using semantic multi-agent mapping" },
-    { label: "Reduce negotiation overhead", val: "80% Time Saved", sub: "Agents resolve MOQ and initial price parameters autonomously" },
-    { label: "Reduce communication friction", val: "No Barriers", sub: "Translates technical specifications into 40+ regional dialects" },
-    { label: "Improve supplier trust evaluation", val: "Verifiable Profiles", sub: "Performance scoring prevents counterparty risk" },
-    { label: "Accelerate procurement cycles", val: "10x Throughput", sub: "Automate raw sourcing input directly to escrow execution" },
-    { label: "Enable programmable settlements", val: "Verified Release", sub: "Funds are held in escrow and released only after verified delivery" }
+    { label: "Supplier discovery", val: "Semantic Discovery", sub: "Built for Indian MSMEs sourcing from global suppliers with semantic product matching" },
+    { label: "Requirement negotiation", val: "Structured Inquiries", sub: "Prepares verified supplier requirements and MOQ expectations upfront" },
+    { label: "Cross-border communication", val: "Multilingual Assistance", sub: "Assists communication across global supplier regions and dialects" },
+    { label: "Supplier trust validation", val: "Trust Assessment", sub: "Evaluates supplier credibility indicators to mitigate counterparty risk" },
+    { label: "Procurement cycles", val: "Streamlined Flow", sub: "Connects raw sourcing input to structured RFQ and escrow execution" },
+    { label: "Payment security", val: "Escrow Protection", sub: "Funds are held in Cashfree sandbox escrow until verified delivery" }
   ];
 
   return (
     <section id="impact" className="py-24 bg-[#050716] border-t border-b border-slate-900 scroll-mt-24">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl mb-16">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-2">Empirical Efficiencies</span>
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-2">Platform Objectives</span>
           <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">
-            Business Impact
+            Designed for Global Sourcing
           </h2>
         </div>
 

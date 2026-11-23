@@ -148,26 +148,26 @@ const Auth = ({ initialMode = 'login' }: AuthProps) => {
                 className="space-y-1"
               >
                 <h2 className="text-xl font-black tracking-tight">
-                  {isLogin ? "Join the Future" : "Welcome Back"}
+                  {isLogin ? "ProcureAI Platform" : "Welcome Back"}
                 </h2>
-                <p className="text-white/55 text-[11px] font-medium leading-relaxed max-w-[12rem] mx-auto">
+                <p className="text-white/70 text-[11px] font-medium leading-relaxed max-w-[14rem] mx-auto">
                   {isLogin
-                    ? "AI agents negotiate deals globally — funds held in secure escrow."
-                    : "Access your procurement dashboard and AI negotiation engine."}
+                    ? "Cross-border supplier sourcing with Cashfree escrow protection."
+                    : "Access your procurement dashboard and active commitments."}
                 </p>
               </motion.div>
             </AnimatePresence>
 
-            {/* KPI stats row */}
+            {/* Architecture highlights row */}
             <div className="flex gap-4 py-2 border-t border-b border-white/10 w-full justify-center">
               {[
-                { label: 'Deals', value: '1,240+' },
-                { label: 'Saved', value: '$2.4M' },
-                { label: 'Success', value: '92%' },
+                { label: 'Sourcing', value: 'Alibaba' },
+                { label: 'Payments', value: 'Cashfree' },
+                { label: 'Settlement', value: 'Escrow' },
               ].map((stat) => (
                 <div key={stat.label} className="text-center">
-                  <div className="text-sm font-black text-white">{stat.value}</div>
-                  <div className="text-[7px] font-bold text-white/35 uppercase tracking-widest">{stat.label}</div>
+                  <div className="text-xs font-bold text-white">{stat.value}</div>
+                  <div className="text-[8px] font-medium text-white/50 uppercase tracking-wider">{stat.label}</div>
                 </div>
               ))}
             </div>

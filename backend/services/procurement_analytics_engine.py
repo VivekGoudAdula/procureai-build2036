@@ -1,314 +1,267 @@
-import os
-import json
-import time
-import random
-from typing import Dict, Any, List
-from datetime import datetime
+"""
+Procurement Analytics Engine
 
-from database.db import suppliers_collection, escrows_collection
-SEARCH_CACHE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "alibaba_search_cache.json")
+Computes user-scoped procurement KPIs, regional distribution, monthly trends,
+deal outcomes, and rule-based insights directly from the authenticated user's escrows.
+All synthetic scaling, simulated trends, and canned strings are removed.
+"""
+
+from typing import Dict, Any, List, Optional
+from datetime import datetime
+from database.db import escrows_collection, suppliers_collection
+
 
 class ProcurementAnalyticsEngine:
     """
-    Enterprise-Grade Procurement Intelligence & Optimization Engine.
-    Aggregates supplier networks, negotiations, delivery verifications, 
-    and secure escrow commitments to calculate global sourcing analytics.
+    Computes genuine analytics metrics scoped strictly to a single buyer_id.
     """
-    
-    def __init__(self):
-        pass
 
-    def _load_json(self, path: str, default: Any) -> Any:
-        if not os.path.exists(path):
-            return default
+    def _get_supplier_lookup(self) -> Dict[str, Dict[str, Any]]:
+        """Builds lookup for supplier country and category."""
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"[ProcurementAnalyticsEngine] Error reading {path}: {str(e)}")
-            return default
+            suppliers = list(suppliers_collection.find({}, {"_id": 0}))
+            lookup: Dict[str, Dict[str, Any]] = {}
+            for s in suppliers:
+                s_id = str(s.get("id"))
+                lookup[s_id] = {
+                    "country": s.get("country") or s.get("region") or "Unknown",
+                    "category": s.get("category") or "",
+                    "name": s.get("name") or "Supplier",
+                }
+            return lookup
+        except Exception:
+            return {}
 
-    def get_raw_suppliers(self) -> List[Dict[str, Any]]:
-        from database.db import get_cached_suppliers
-        suppliers = get_cached_suppliers()
-        
-        cached_search = self._load_json(SEARCH_CACHE_PATH, [])
-        if isinstance(cached_search, list):
-            suppliers.extend(cached_search)
-            
-        return suppliers
-
-    def get_escrow_records(self) -> Dict[str, Any]:
-        escrows = list(escrows_collection.find({}, {"_id": 0}))
-        return {e["transaction_id"]: e for e in escrows if "transaction_id" in e}
-
-    def calculate_procurement_intelligence(self) -> Dict[str, Any]:
+    def calculate_procurement_intelligence(self, buyer_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        Dynamically computes all high-fidelity KPIs, regional distribution,
-        category intelligence, trends, live signals, and the Procurement Optimization Score.
+        Calculates analytics strictly from records.
+        Returns clean empty structures if buyer has no escrows.
         """
-        suppliers = self.get_raw_suppliers()
-        escrows = self.get_escrow_records()
+        query: Dict[str, Any] = {}
+        if buyer_id is not None:
+            if not buyer_id:
+                return self._empty_analytics()
+            query = {"buyer_id": buyer_id}
 
-        # --- 1. CORE ENTERPRISE KPIs ---
-        # Card 1: Total Procurement Volume
-        base_volume = 1200000.0  # $1.2M base volume as requested
-        for esc in escrows.values():
-            amount = esc.get("amount", 0.0)
-            if amount > 0:
-                base_volume += amount * 15000  # Scale simulated transactions to realistic enterprise scale
+        escrows = list(escrows_collection.find(query, {"_id": 0}))
+        if not escrows:
+            return self._empty_analytics()
 
-        # Card 2: Negotiated Procurement Savings
-        # Compute avg savings = (base_price - negotiated_price) / base_price
-        savings_sum = 0.0
-        savings_count = 0
-        for s in suppliers:
-            base_p = s.get("base_price", 0.0)
-            neg_p = s.get("negotiated_price", s.get("price", 0.0))
-            if base_p > 0 and neg_p > 0 and base_p > neg_p:
-                savings_sum += (base_p - neg_p) / base_p
-                savings_count += 1
-        
-        avg_savings_pct = (savings_sum / savings_count * 100) if savings_count > 0 else 18.2
-        if avg_savings_pct <= 0 or avg_savings_pct > 50:
-            avg_savings_pct = 18.2
+        supplier_lookup = self._get_supplier_lookup()
 
-        # Card 3: Supplier Fulfillment Compliance
-        # Compliance is derived from delivery verification rate and on-time performance
-        verified_count = 0
-        total_escrows = len(escrows)
-        for esc in escrows.values():
-            if esc.get("escrow_status") == "released" or esc.get("verified", False):
-                verified_count += 1
-        
-        fulfillment_compliance = (verified_count / total_escrows * 100) if total_escrows > 0 else 96.4
-        if fulfillment_compliance < 80:
-            fulfillment_compliance = 96.4
+        # 1. KPIs
+        total_procurement_volume_inr = 0.0
+        deals_count = len(escrows)
+        non_created_deals = 0
+        completed_count = 0
+        refund_count = 0
+        in_progress_count = 0
+        awaiting_payment_count = 0
+        total_lead_time_days = 0
 
-        # Card 4: Active Global Supplier Networks
-        # Count unique active suppliers actively participating in transactions or local database
-        active_supplier_count = max(128, len(suppliers))
+        # For savings calculation
+        total_listed_amount = 0.0
+        total_paid_amount = 0.0
+        has_savings_data = False
 
-        # --- 2. GLOBAL TRENDS (CHART DATA) ---
-        # Create enterprise line and area charts mapping optimization factors over the last 5 months
-        months = ["Jan", "Feb", "Mar", "Apr", "May"]
-        global_trends = []
-        for idx, month in enumerate(months):
-            # Gradual improvements simulated across months showing AI learning curve
-            factor = 1.0 + (idx * 0.04)
-            global_trends.append({
-                "month": month,
-                "procurement_savings": round(avg_savings_pct * (0.8 + idx * 0.05), 1),
-                "supplier_response_rate": round(92.4 * (0.95 + idx * 0.01), 1),
-                "fulfillment_performance": round(fulfillment_compliance * (0.97 + idx * 0.0075), 1),
-                "negotiation_success_rate": round(91.5 * (0.96 + idx * 0.01), 1),
-                "sourcing_volume": int(base_volume * (0.6 + idx * 0.1)),
-                "delivery_compliance": round(95.0 + (idx * 0.35), 1),
-                "moq_flexibility": round(65.0 + (idx * 3.5), 1)
-            })
+        # Unique suppliers
+        unique_supplier_ids = set()
 
-        # --- 3. REGIONAL SOURCING INTELLIGENCE ---
-        # Compute dynamic stats per region based on live data
-        regions = ["China", "Vietnam", "India", "Turkey", "Bangladesh"]
-        region_stats = {r: {"active_suppliers": 0, "savings_sum": 0.0, "savings_count": 0, "delivery_sum": 0, "delivery_count": 0, "trust_sum": 0, "trust_count": 0} for r in regions}
-        
-        region_mapping = {
-            "china": "China", "vietnam": "Vietnam", "india": "India", 
-            "turkey": "Turkey", "bangladesh": "Bangladesh", "shenzhen": "China",
-            "dhaka": "Bangladesh", "hanoi": "Vietnam", "mumbai": "India", "istanbul": "Turkey"
-        }
+        # Monthly aggregation
+        monthly_map: Dict[str, Dict[str, Any]] = {}
 
-        for s in suppliers:
-            country = s.get("country", s.get("region", "China")).lower()
-            region = "China" # default fallback
-            for k, v in region_mapping.items():
-                if k in country:
-                    region = v
-                    break
-            
-            region_stats[region]["active_suppliers"] += 1
-            
-            # Pricing/Savings
-            base_p = s.get("base_price", 0.0)
-            neg_p = s.get("negotiated_price", s.get("price", 0.0))
-            if base_p > 0 and neg_p > 0:
-                savings = (base_p - neg_p) / base_p * 100
-                region_stats[region]["savings_sum"] += savings
-                region_stats[region]["savings_count"] += 1
+        # Regional aggregation
+        regional_map: Dict[str, Dict[str, Any]] = {}
 
-            # Delivery
-            lead_time = s.get("lead_time_days", s.get("delivery_days", 10))
-            if lead_time > 0:
-                region_stats[region]["delivery_sum"] += lead_time
-                region_stats[region]["delivery_count"] += 1
+        # Category aggregation (only if stored)
+        category_map: Dict[str, Dict[str, Any]] = {}
+        has_real_categories = False
 
-            # Trust
-            trust = s.get("reliability_score", s.get("reliability", 0.8) * 100)
-            region_stats[region]["trust_sum"] += trust
-            region_stats[region]["trust_count"] += 1
+        for esc in escrows:
+            raw_status = str(esc.get("status") or esc.get("escrow_status", "CREATED")).upper()
+            amt = float(esc.get("amount_inr", esc.get("amount", 0.0)))
+            lead_time = int(esc.get("promised_delivery_days", 0))
+            total_lead_time_days += lead_time
 
-        # Seed defaults to guarantee robust enterprise-grade look
-        default_regions = {
-            "China": {"suppliers": 48, "savings": 22.4, "delivery": 12, "trust": 95},
-            "Vietnam": {"suppliers": 32, "savings": 19.5, "delivery": 9, "trust": 96},
-            "India": {"suppliers": 24, "savings": 16.8, "delivery": 14, "trust": 92},
-            "Turkey": {"suppliers": 15, "savings": 14.2, "delivery": 8, "trust": 94},
-            "Bangladesh": {"suppliers": 9, "savings": 11.5, "delivery": 18, "trust": 89}
-        }
+            s_id = str(esc.get("supplier_id", ""))
+            if s_id:
+                unique_supplier_ids.add(s_id)
 
-        regional_sourcing_intelligence = []
-        for r in regions:
-            stats = region_stats[r]
-            
-            # Combine real calculated values with defaults for high-density presentation
-            active_sups = stats["active_suppliers"] if stats["active_suppliers"] > 0 else default_regions[r]["suppliers"]
-            avg_sav = (stats["savings_sum"] / stats["savings_count"]) if stats["savings_count"] > 0 else default_regions[r]["savings"]
-            avg_del = int(stats["delivery_sum"] / stats["delivery_count"]) if stats["delivery_count"] > 0 else default_regions[r]["delivery"]
-            avg_tru = (stats["trust_sum"] / stats["trust_count"]) if stats["trust_count"] > 0 else default_regions[r]["trust"]
+            sup_info = supplier_lookup.get(s_id, {})
+            country = esc.get("supplier_country") or sup_info.get("country") or "Unknown"
+            cat = esc.get("product_category") or sup_info.get("category") or ""
+            if cat and cat.lower() not in ["general", "components", ""]:
+                has_real_categories = True
 
-            # Keep values reasonable and aligned with requested enterprise standard
-            avg_sav = min(40.0, max(5.0, avg_sav))
-            avg_del = min(45, max(2, avg_del))
-            avg_tru = min(100.0, max(50.0, avg_tru))
+            # Status classification
+            if raw_status in ["FUNDED", "PROOF_UPLOADED", "VERIFIED", "RELEASED", "LOCKED"]:
+                total_procurement_volume_inr += amt
 
-            # Trust rating represented as verified / Gold / Audited tag
-            trust_rating = "VERIFIED"
-            if avg_tru >= 95:
-                trust_rating = "GOLD"
-            elif avg_tru >= 92:
-                trust_rating = "VERIFIED"
-            else:
-                trust_rating = "AUDITED"
+            if raw_status != "CREATED":
+                non_created_deals += 1
 
-            regional_sourcing_intelligence.append({
-                "region": r,
-                "active_suppliers": active_sups,
-                "avg_savings": f"{avg_sav:.1f}%",
-                "avg_lead_time": f"{avg_del} days",
-                "trust_rating": trust_rating
-            })
+            if raw_status == "RELEASED":
+                completed_count += 1
+            elif raw_status in ["FUNDED", "PROOF_UPLOADED", "VERIFIED", "LOCKED"]:
+                in_progress_count += 1
+            elif raw_status == "REFUNDED":
+                refund_count += 1
+            elif raw_status == "CREATED":
+                awaiting_payment_count += 1
 
-        # --- 4. CATEGORY INTELLIGENCE ---
-        # Columns: Category | Avg Savings | Supplier Count | Fulfillment Rate | Avg MOQ
-        categories = ["Apparel", "Electronics", "Industrial Components", "Packaging", "Logistics"]
-        category_mapping = {
-            "apparel": "Apparel", "clothing": "Apparel", "textile": "Apparel",
-            "electronics": "Electronics", "hardware": "Electronics", "semiconductor": "Electronics",
-            "industrial": "Industrial Components", "steel": "Industrial Components", "cement": "Industrial Components", "valves": "Industrial Components",
-            "packaging": "Packaging", "cardboard": "Packaging",
-            "logistics": "Logistics", "shipping": "Logistics", "freight": "Logistics"
-        }
+            # Savings check: only if escrows store both listed_unit_price_inr and negotiated_unit_price
+            listed_price = esc.get("listed_unit_price_inr") or esc.get("listed_price")
+            paid_price = esc.get("negotiated_unit_price") or esc.get("negotiated_price")
+            if listed_price and paid_price:
+                try:
+                    l_val = float(listed_price)
+                    p_val = float(paid_price)
+                    if l_val > 0 and p_val > 0:
+                        total_listed_amount += l_val
+                        total_paid_amount += p_val
+                        has_savings_data = True
+                except (ValueError, TypeError):
+                    pass
 
-        cat_stats = {c: {"savings_sum": 0.0, "savings_count": 0, "suppliers": 0, "fulfillment_sum": 0, "fulfillment_count": 0, "moq_sum": 0, "moq_count": 0} for c in categories}
-        
-        for s in suppliers:
-            scat = s.get("category", "Industrial Components").lower()
-            cat = "Industrial Components"
-            for k, v in category_mapping.items():
-                if k in scat:
-                    cat = v
-                    break
-            
-            cat_stats[cat]["suppliers"] += 1
-            
-            base_p = s.get("base_price", 0.0)
-            neg_p = s.get("negotiated_price", s.get("price", 0.0))
-            if base_p > 0 and neg_p > 0:
-                savings = (base_p - neg_p) / base_p * 100
-                cat_stats[cat]["savings_sum"] += savings
-                cat_stats[cat]["savings_count"] += 1
+            # Monthly bucket
+            created_raw = esc.get("created_at") or esc.get("timestamp") or ""
+            month_key = "Recent"
+            if len(str(created_raw)) >= 7:
+                try:
+                    dt = datetime.fromisoformat(str(created_raw).replace("Z", "+00:00"))
+                    month_key = dt.strftime("%b %Y")
+                except Exception:
+                    month_key = str(created_raw)[:7]
 
-            fulfillment = s.get("success_rate", s.get("reliability_score", 95))
-            cat_stats[cat]["fulfillment_sum"] += fulfillment
-            cat_stats[cat]["fulfillment_count"] += 1
+            if month_key not in monthly_map:
+                monthly_map[month_key] = {"month": month_key, "volume_inr": 0.0, "deals": 0}
+            monthly_map[month_key]["volume_inr"] += amt
+            monthly_map[month_key]["deals"] += 1
 
-            moq = s.get("moq", 250)
-            cat_stats[cat]["moq_sum"] += moq
-            cat_stats[cat]["moq_count"] += 1
+            # Regional bucket
+            if country not in regional_map:
+                regional_map[country] = {"deals": 0, "total_inr": 0.0, "lead_days": 0}
+            regional_map[country]["deals"] += 1
+            regional_map[country]["total_inr"] += amt
+            regional_map[country]["lead_days"] += lead_time
 
-        default_categories = {
-            "Apparel": {"savings": 19.4, "suppliers": 36, "fulfillment": 96.8, "moq": 1000},
-            "Electronics": {"savings": 14.8, "suppliers": 42, "fulfillment": 95.2, "moq": 500},
-            "Industrial Components": {"savings": 16.5, "suppliers": 28, "fulfillment": 94.7, "moq": 250},
-            "Packaging": {"savings": 22.1, "suppliers": 14, "fulfillment": 97.4, "moq": 5000},
-            "Logistics": {"savings": 18.0, "suppliers": 8, "fulfillment": 98.2, "moq": 1}
-        }
+            # Category bucket
+            if cat:
+                if cat not in category_map:
+                    category_map[cat] = {"deals": 0, "total_inr": 0.0}
+                category_map[cat]["deals"] += 1
+                category_map[cat]["total_inr"] += amt
 
-        procurement_category_intelligence = []
-        for c in categories:
-            stats = cat_stats[c]
-            sups = stats["suppliers"] if stats["suppliers"] > 0 else default_categories[c]["suppliers"]
-            avg_sav = (stats["savings_sum"] / stats["savings_count"]) if stats["savings_count"] > 0 else default_categories[c]["savings"]
-            avg_ful = (stats["fulfillment_sum"] / stats["fulfillment_count"]) if stats["fulfillment_count"] > 0 else default_categories[c]["fulfillment"]
-            avg_moq = int(stats["moq_sum"] / stats["moq_count"]) if stats["moq_count"] > 0 else default_categories[c]["moq"]
+        # Completed rate: RELEASED / non-CREATED
+        completed_rate = (
+            round((completed_count / non_created_deals) * 100, 1)
+            if non_created_deals > 0
+            else 0.0
+        )
 
-            avg_sav = min(45.0, max(5.0, avg_sav))
-            avg_ful = min(100.0, max(80.0, avg_ful))
+        avg_lead_time = (
+            round(total_lead_time_days / deals_count, 1)
+            if deals_count > 0
+            else 0.0
+        )
 
-            procurement_category_intelligence.append({
-                "category": c,
-                "avg_savings": f"{avg_sav:.1f}%",
-                "supplier_count": sups,
-                "fulfillment_rate": f"{avg_ful:.1f}%",
-                "avg_moq": f"{avg_moq:,} units" if c != "Logistics" else "N/A"
-            })
+        # Savings percentage vs listed price
+        savings_pct_str: Optional[str] = None
+        if has_savings_data and total_listed_amount > 0:
+            pct = ((total_listed_amount - total_paid_amount) / total_listed_amount) * 100
+            savings_pct_str = f"{pct:.1f}% vs listed price"
 
-        # --- 5. AI PROCUREMENT INSIGHTS ---
-        # Generate high-value intelligence summaries dynamically
-        ai_procurement_insights = [
-            "Vietnam textile suppliers currently outperform China by 25% in fulfillment speed, making them optimal for speed-to-market orders.",
-            "MOQ flexibility has increased 22% among apparel suppliers this month due to optimized verified commitments.",
-            "Suppliers with third-party SGS or Bureau Veritas verification demonstrate 24% higher pricing stability and lower dispute rates.",
-            "Electronics suppliers in Shenzhen show 18% lower negotiation resistance during initial AI communication rounds.",
-            "AI-assisted multilingual negotiations reduced logistics procurement costs by an average of 18% across bulk freight contracts."
+        # Monthly trends
+        global_trends = [
+            {
+                "month": v["month"],
+                "sourcing_volume": round(v["volume_inr"], 2),
+                "deals_count": v["deals"],
+            }
+            for v in monthly_map.values()
         ]
 
-        # --- 6. LIVE PROCUREMENT SIGNALS ---
-        # Feed-like recent signals of supply chain and sourcing activity
-        live_procurement_signals = [
-            "Supplier pricing volatility detected in textile category across China; buyers recommended to leverage active negotiation sessions.",
-            "MOQ flexibility rising across Southeast Asian suppliers, presenting favorable contract-locking conditions.",
-            "Logistics lead times improving in Vietnam sourcing network; average fulfillment duration down to 9 days.",
-            "AI negotiation success strongest among long-term procurement contracts backed by verified escrows."
+        # Regional table (no trust rating column, real values only)
+        regional_sourcing_intelligence = [
+            {
+                "region": country,
+                "deals": data["deals"],
+                "total_inr": round(data["total_inr"], 2),
+                "avg_lead_time": f"{round(data['lead_days'] / data['deals'], 1)} days" if data["deals"] else "N/A",
+            }
+            for country, data in regional_map.items()
         ]
 
-        # --- 7. PROCUREMENT OPTIMIZATION SCORE ---
-        # Large Premium Card calculating overall Sourcing Index
-        # Calculated based on: supplier trust, negotiation outcomes, delivery compliance, sourcing diversity, procurement efficiency
-        factor_trust = min(100.0, max(80.0, avg_tru))
-        factor_negotiation = min(100.0, max(80.0, avg_savings_pct * 5.0)) # Scaled index
-        factor_delivery = fulfillment_compliance
-        factor_diversity = min(100.0, 80.0 + len([s for s in suppliers if s.get("country") != "China"]) * 2)
-        factor_efficiency = 94.2 # Base efficiency from AI speed
+        # Category table (only if real product categories exist)
+        category_intelligence = []
+        if has_real_categories:
+            category_intelligence = [
+                {
+                    "category": cat,
+                    "deals_count": d["deals"],
+                    "total_inr": round(d["total_inr"], 2),
+                }
+                for cat, d in category_map.items()
+            ]
 
-        optimization_score = int((factor_trust * 0.25) + (factor_negotiation * 0.25) + (factor_delivery * 0.20) + (factor_diversity * 0.15) + (factor_efficiency * 0.15))
-        if optimization_score > 98:
-            optimization_score = 92
-        elif optimization_score < 70:
-            optimization_score = 88
+        # Deal outcomes
+        deal_outcomes = {
+            "completed": completed_count,
+            "in_progress": in_progress_count,
+            "awaiting_payment": awaiting_payment_count,
+            "refunded": refund_count,
+            "total_deals": deals_count,
+        }
 
-        score_factors = [
-            {"name": "Supplier Trust Index", "value": int(factor_trust), "status": "optimal"},
-            {"name": "Negotiation Outcomes", "value": int(factor_negotiation), "status": "optimal"},
-            {"name": "Delivery Compliance", "value": int(factor_delivery), "status": "optimal"},
-            {"name": "Sourcing Diversity", "value": int(factor_diversity), "status": "optimal" if factor_diversity >= 85 else "warning"},
-            {"name": "Procurement Efficiency", "value": int(factor_efficiency), "status": "optimal"}
-        ]
+        # Rule-based insights (at most 3)
+        rule_insights = []
+        if total_procurement_volume_inr > 0 and non_created_deals > 0:
+            avg_deal = total_procurement_volume_inr / non_created_deals
+            rule_insights.append(f"Your average deal is ₹{avg_deal:,.2f}.")
+        if in_progress_count > 0:
+            rule_insights.append(f"{in_progress_count} deal(s) are currently in progress awaiting delivery/verification.")
+        if regional_map:
+            top_country, top_data = max(regional_map.items(), key=lambda x: x[1]["deals"])
+            rule_insights.append(f"Most of your orders are from {top_country} ({top_data['deals']} order{'s' if top_data['deals'] > 1 else ''}).")
 
         return {
             "kpis": {
-                "total_procurement_volume": f"${base_volume/1000000:.1f}M",
-                "negotiated_savings": f"{avg_savings_pct:.1f}%",
-                "fulfillment_compliance": f"{fulfillment_compliance:.1f}%",
-                "active_supplier_networks": active_supplier_count
+                "total_procurement_volume_inr": round(total_procurement_volume_inr, 2),
+                "deals_count": deals_count,
+                "completed_rate": completed_rate,
+                "refund_count": refund_count,
+                "avg_lead_time_days": avg_lead_time,
+                "savings": savings_pct_str,
+                "suppliers_used": len(unique_supplier_ids),
             },
             "global_trends": global_trends,
             "regional_sourcing_intelligence": regional_sourcing_intelligence,
-            "procurement_category_intelligence": procurement_category_intelligence,
-            "ai_procurement_insights": ai_procurement_insights,
-            "live_procurement_signals": live_procurement_signals,
-            "procurement_optimization_score": {
-                "score": optimization_score,
-                "factors": score_factors
-            }
+            "procurement_category_intelligence": category_intelligence,
+            "deal_outcomes": deal_outcomes,
+            "ai_procurement_insights": rule_insights[:3],
+        }
+
+    def _empty_analytics(self) -> Dict[str, Any]:
+        """Returns clean empty structure for users with zero transactions."""
+        return {
+            "kpis": {
+                "total_procurement_volume_inr": 0.0,
+                "deals_count": 0,
+                "completed_rate": 0.0,
+                "refund_count": 0,
+                "avg_lead_time_days": 0.0,
+                "savings": None,
+                "suppliers_used": 0,
+            },
+            "global_trends": [],
+            "regional_sourcing_intelligence": [],
+            "procurement_category_intelligence": [],
+            "deal_outcomes": {
+                "completed": 0,
+                "in_progress": 0,
+                "awaiting_payment": 0,
+                "refunded": 0,
+                "total_deals": 0,
+            },
+            "ai_procurement_insights": [],
         }

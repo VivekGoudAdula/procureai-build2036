@@ -41,6 +41,10 @@ const Layout = () => {
                 <Outlet />
               </motion.div>
             </AnimatePresence>
+
+            <footer className="mt-14 pt-6 border-t border-slate-200/60 text-center text-[11px] text-slate-400 font-medium">
+              Prototype for BUILD 2036. Payments run in Cashfree sandbox; payouts are simulated. Supplier data from Alibaba listings.
+            </footer>
           </div>
         </main>
       </div>

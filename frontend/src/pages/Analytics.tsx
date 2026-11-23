@@ -2,28 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
-  TrendingDown, 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  DollarSign, 
   Clock, 
   CheckCircle2, 
-  Zap,
-  Layers,
-  Activity,
-  Calendar,
-  Globe,
-  Shield,
-  Network,
-  RefreshCw,
-  AlertCircle,
-  Info,
+  Layers, 
+  Download, 
+  Globe, 
   Sparkles,
-  Award,
-  ChevronRight,
-  TrendingUp as SourcingUp
+  AlertCircle,
+  FileSpreadsheet
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -35,91 +22,28 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  BarChart,
-  Bar
+  ResponsiveContainer 
 } from 'recharts';
+import { formatINR, formatLakhCrore } from '../lib/utils';
 
-const cn = (...inputs: any[]) => inputs.filter(Boolean).join(' ');
-
-// Fallback robust local data corresponding to backend calculations
-const defaultAnalyticsData = {
-  kpis: {
-    total_procurement_volume: "$1.2M",
-    negotiated_savings: "18.2%",
-    fulfillment_compliance: "96.4%",
-    active_supplier_networks: 128
-  },
-  global_trends: [
-    { month: "Jan", procurement_savings: 14.5, supplier_response_rate: 88.0, fulfillment_performance: 92.0, negotiation_success_rate: 85.0, sourcing_volume: 720000, delivery_compliance: 94.0, moq_flexibility: 68.0 },
-    { month: "Feb", procurement_savings: 15.2, supplier_response_rate: 89.5, fulfillment_performance: 93.5, negotiation_success_rate: 87.0, sourcing_volume: 840000, delivery_compliance: 95.2, moq_flexibility: 70.5 },
-    { month: "Mar", procurement_savings: 16.8, supplier_response_rate: 91.2, fulfillment_performance: 94.0, negotiation_success_rate: 89.5, sourcing_volume: 960000, delivery_compliance: 95.8, moq_flexibility: 74.0 },
-    { month: "Apr", procurement_savings: 17.5, supplier_response_rate: 93.0, fulfillment_performance: 95.8, negotiation_success_rate: 91.0, sourcing_volume: 1080000, delivery_compliance: 96.1, moq_flexibility: 78.5 },
-    { month: "May", procurement_savings: 18.2, supplier_response_rate: 96.4, fulfillment_performance: 96.4, negotiation_success_rate: 92.5, sourcing_volume: 1200000, delivery_compliance: 96.4, moq_flexibility: 82.0 }
-  ],
-  regional_sourcing_intelligence: [
-    { region: "China", active_suppliers: 48, avg_savings: "22.4%", avg_lead_time: "12 days", trust_rating: "GOLD" },
-    { region: "Vietnam", active_suppliers: 32, avg_savings: "19.5%", avg_lead_time: "9 days", trust_rating: "GOLD" },
-    { region: "India", active_suppliers: 24, avg_savings: "16.8%", avg_lead_time: "14 days", trust_rating: "VERIFIED" },
-    { region: "Turkey", active_suppliers: 15, avg_savings: "14.2%", avg_lead_time: "8 days", trust_rating: "VERIFIED" },
-    { region: "Bangladesh", active_suppliers: 9, avg_savings: "11.5%", avg_lead_time: "18 days", trust_rating: "AUDITED" }
-  ],
-  procurement_category_intelligence: [
-    { category: "Apparel", avg_savings: "19.4%", supplier_count: 36, fulfillment_rate: "96.8%", avg_moq: "1,000 units" },
-    { category: "Electronics", avg_savings: "14.8%", supplier_count: 42, fulfillment_rate: "95.2%", avg_moq: "500 units" },
-    { category: "Industrial Components", avg_savings: "16.5%", supplier_count: 28, fulfillment_rate: "94.7%", avg_moq: "250 units" },
-    { category: "Packaging", avg_savings: "22.1%", supplier_count: 14, fulfillment_rate: "97.4%", avg_moq: "5,000 units" },
-    { category: "Logistics", avg_savings: "18.0%", supplier_count: 8, fulfillment_rate: "98.2%", avg_moq: "N/A" }
-  ],
-  ai_procurement_insights: [
-    "Vietnam textile suppliers currently outperform China by 25% in fulfillment speed, making them optimal for speed-to-market orders.",
-    "MOQ flexibility has increased 22% among apparel suppliers this month due to optimized escrow commitments.",
-    "Suppliers with third-party SGS or Bureau Veritas verification demonstrate 24% higher pricing stability and lower dispute rates.",
-    "Electronics suppliers in Shenzhen show 18% lower negotiation resistance during initial AI communication rounds.",
-    "AI-assisted multilingual negotiations reduced logistics procurement costs by an average of 18% across bulk freight contracts."
-  ],
-  live_procurement_signals: [
-    "Supplier pricing volatility detected in textile category across China; buyers recommended to leverage active negotiation sessions.",
-    "MOQ flexibility rising across Southeast Asian suppliers, presenting favorable contract-locking conditions.",
-    "Logistics lead times improving in Vietnam sourcing network; average fulfillment duration down to 9 days.",
-    "AI negotiation success strongest among long-term procurement contracts backed by verified escrows."
-  ],
-  procurement_optimization_score: {
-    score: 92,
-    factors: [
-      { name: "Supplier Trust Index", value: 94, status: "optimal" },
-      { name: "Negotiation Outcomes", value: 89, status: "optimal" },
-      { name: "Delivery Compliance", value: 96, status: "optimal" },
-      { name: "Sourcing Diversity", value: 87, status: "warning" },
-      { name: "Procurement Efficiency", value: 94, status: "optimal" }
-    ]
-  }
-};
-
-const Analytics = () => {
+export default function Analytics() {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'savings' | 'volume' | 'fulfillment' | 'moq' | 'response' | 'success'>('savings');
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
   const fetchAnalytics = async () => {
-    setIsRefreshing(true);
     try {
       const response = await fetch('/api/procurement/analytics');
       if (response.ok) {
         const result = await response.json();
         setData(result);
-        toast.success("Procurement operational telemetry synchronized successfully.");
       } else {
-        throw new Error("Backend response error");
+        throw new Error("Failed to load analytics");
       }
     } catch (err) {
-      console.warn("Could not load backend analytics, displaying active cached profile.", err);
-      // Display fallback structured analytics
-      setData(defaultAnalyticsData);
+      console.warn("Analytics load error:", err);
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   };
 
@@ -127,618 +51,387 @@ const Analytics = () => {
     fetchAnalytics();
   }, []);
 
-  const handleManualRefresh = () => {
-    fetchAnalytics();
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    try {
+      const response = await fetch('/api/settlements/export-csv');
+      if (!response.ok) throw new Error("Export failed");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `deals_export_${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("Deals exported successfully as CSV.");
+    } catch (err) {
+      toast.error("Failed to export deals.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (isLoading || !data) {
     return (
-      <div className="space-y-8 pb-16 pt-4 px-1 flex flex-col items-center justify-center min-h-[70vh]">
-        <div className="relative flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-full border-t-2 border-slate-900 border-r-2 border-r-transparent animate-spin" />
-          <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] animate-pulse">
-            Establishing Secure Telemetry Tunnel...
-          </p>
-        </div>
+      <div className="space-y-8 pb-16 pt-4 px-1 flex flex-col items-center justify-center min-h-[50vh]">
+        <div className="w-10 h-10 rounded-full border-2 border-slate-900 border-r-transparent animate-spin" />
+        <p className="text-slate-500 text-xs font-semibold">Loading analytics...</p>
       </div>
     );
   }
 
-  // Multi-dimensional chart metrics selection
-  const getActiveChartData = () => {
-    const trends = data.global_trends || defaultAnalyticsData.global_trends;
-    switch (activeTab) {
-      case 'volume':
-        return trends.map(t => ({ name: t.month, value: t.sourcing_volume / 1000, label: 'Sourcing Volume ($K)' }));
-      case 'fulfillment':
-        return trends.map(t => ({ name: t.month, value: t.fulfillment_performance, label: 'Fulfillment Performance (%)' }));
-      case 'moq':
-        return trends.map(t => ({ name: t.month, value: t.moq_flexibility, label: 'MOQ Flexibility (%)' }));
-      case 'response':
-        return trends.map(t => ({ name: t.month, value: t.supplier_response_rate, label: 'Supplier Response Rate (%)' }));
-      case 'success':
-        return trends.map(t => ({ name: t.month, value: t.negotiation_success_rate, label: 'Negotiation Success Rate (%)' }));
-      default:
-        return trends.map(t => ({ name: t.month, value: t.procurement_savings, label: 'Procurement Savings (%)' }));
-    }
-  };
-
-  const getStrokeColor = () => {
-    switch (activeTab) {
-      case 'volume': return '#0284c7'; // Sky
-      case 'fulfillment': return '#8b5cf6'; // Violet
-      case 'moq': return '#f59e0b'; // Amber
-      case 'response': return '#ec4899'; // Pink
-      case 'success': return '#6366f1'; // Indigo
-      default: return '#10b981'; // Emerald
-    }
-  };
-
-  const getGradientId = () => `grad_${activeTab}`;
-
-  const kpis = data.kpis || defaultAnalyticsData.kpis;
-  const scoreData = data.procurement_optimization_score || defaultAnalyticsData.procurement_optimization_score;
+  const kpis = data.kpis || {};
+  const dealOutcomes = data.deal_outcomes || { completed: 0, in_progress: 0, awaiting_payment: 0, refunded: 0, total_deals: 0 };
+  const globalTrends = data.global_trends || [];
+  const regionalData = data.regional_sourcing_intelligence || [];
+  const categoryData = data.procurement_category_intelligence || [];
+  const insights = data.ai_procurement_insights || [];
+  const hasDeals = (kpis.deals_count || 0) > 0;
 
   return (
     <div className="space-y-8 pb-16 pt-4 px-1">
       {/* 🚀 PAGE HEADER */}
-      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
-        <div className="space-y-2">
-          {/* Status Indicator Chips */}
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-[9px] font-black uppercase tracking-wider shadow-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              Live Supplier Intelligence
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-50 border border-violet-100 text-violet-600 text-[9px] font-black uppercase tracking-wider shadow-sm">
-              <Shield className="w-3 h-3 text-violet-500 animate-pulse" />
-              AI Negotiation Analytics Active
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-600 text-[9px] font-black uppercase tracking-wider shadow-sm">
-              <Globe className="w-3 h-3 text-slate-500" />
-              Global Sourcing Visibility
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-600 text-[9px] font-black uppercase tracking-wider shadow-sm">
-              <Sparkles className="w-3 h-3 text-emerald-500" />
-              Procurement Optimization Engine Online
-            </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 mb-1">
+            <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-[10px] font-semibold py-0.5 px-2.5">
+              Payments: Cashfree sandbox
+            </Badge>
           </div>
-
-          <h1 className="text-4xl font-display font-medium tracking-tight text-slate-950">
-            Procurement Intelligence Analytics
+          <h1 className="text-[clamp(1.5rem,2.5vw,2rem)] font-display font-bold tracking-tight text-slate-950">
+            Analytics
           </h1>
-          <p className="text-slate-500 max-w-3xl font-medium text-sm leading-relaxed">
-            Real-time sourcing intelligence, supplier performance analytics, and AI-driven procurement optimization.
+          <p className="text-slate-500 font-medium text-sm leading-relaxed">
+            Your procurement and settlement analytics.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-start lg:self-end">
+        <div>
           <Button 
-            variant="outline" 
-            onClick={handleManualRefresh}
-            disabled={isRefreshing}
-            className="border-slate-200 text-slate-600 font-black text-xs uppercase tracking-widest h-11 px-5 rounded-xl transition-all shadow-sm hover:bg-slate-50 flex items-center gap-2"
+            onClick={handleExportCSV}
+            disabled={!hasDeals || isExporting}
+            className="bg-slate-950 hover:bg-black text-white font-bold text-xs uppercase tracking-wider h-11 px-5 rounded-xl shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
           >
-            <RefreshCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin")} />
-            Sync Telemetry
-          </Button>
-          <Button 
-            className="bg-slate-950 hover:bg-black text-white font-black text-xs uppercase tracking-widest h-11 px-6 rounded-xl shadow-lg shadow-slate-200 transition-all hover:scale-[1.02] flex items-center gap-2"
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            Operational Report
+            <Download className="w-4 h-4" />
+            {isExporting ? "Exporting..." : "Export deals (CSV)"}
           </Button>
         </div>
       </div>
 
-      {/* ✅ REAL PROCUREMENT KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* CARD 1: Total Procurement Volume */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.05 }}
-        >
-          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.01)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.03)] hover:border-slate-300 transition-all rounded-3xl overflow-hidden p-6 group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50/50 flex items-center justify-center border border-blue-100 group-hover:scale-105 transition-transform">
-                <Globe className="w-5 h-5 text-blue-600" />
-              </div>
-              <Badge className="bg-blue-50 text-blue-600 border-none uppercase tracking-widest text-[8px] font-black py-1 px-2.5">
-                VOLUME
-              </Badge>
+      {/* ✅ REAL PROCUREMENT KPIs (₹) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* CARD 1: Total Procurement Value */}
+        <Card className="bg-white border-slate-200 shadow-sm rounded-2xl p-6 hover:border-slate-300 transition-all">
+          <div className="flex justify-between items-start mb-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-900">
+              <span className="font-bold text-base">₹</span>
             </div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Total Procurement Volume
-            </p>
-            <h3 className="text-3xl font-semibold mt-1 tracking-tight text-slate-950 font-display">
-              {kpis.total_procurement_volume}
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium mt-2">
-              Across AI-assisted sourcing workflows
-            </p>
-          </Card>
-        </motion.div>
+            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-[9px] font-bold py-0.5 px-2">
+              VOLUME
+            </Badge>
+          </div>
+          <p className="text-xs font-semibold text-slate-500">
+            Total procurement value
+          </p>
+          <h3 className="text-2xl font-bold mt-1 tracking-tight text-slate-950">
+            {formatLakhCrore(kpis.total_procurement_volume_inr)}
+          </h3>
+          <p className="text-[11px] text-slate-400 mt-1">
+            {formatINR(kpis.total_procurement_volume_inr, true)} across funded deals
+          </p>
+        </Card>
 
-        {/* CARD 2: Negotiated Procurement Savings */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-        >
-          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.01)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.03)] hover:border-slate-300 transition-all rounded-3xl overflow-hidden p-6 group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50/50 flex items-center justify-center border border-emerald-100 group-hover:scale-105 transition-transform">
-                <TrendingDown className="w-5 h-5 text-emerald-600" />
-              </div>
-              <Badge className="bg-emerald-50 text-emerald-600 border-none uppercase tracking-widest text-[8px] font-black py-1 px-2.5">
-                OPTIMIZED
-              </Badge>
+        {/* CARD 2: Deals & Completion Rate */}
+        <Card className="bg-white border-slate-200 shadow-sm rounded-2xl p-6 hover:border-slate-300 transition-all">
+          <div className="flex justify-between items-start mb-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center border border-emerald-100 text-emerald-600">
+              <CheckCircle2 className="w-5 h-5" />
             </div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Negotiated Procurement Savings
-            </p>
-            <h3 className="text-3xl font-semibold mt-1 tracking-tight text-slate-950 font-display">
-              {kpis.negotiated_savings}
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium mt-2">
-              Average cost reduction achieved via AI negotiation
-            </p>
-          </Card>
-        </motion.div>
+            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] font-bold py-0.5 px-2">
+              COMPLETION
+            </Badge>
+          </div>
+          <p className="text-xs font-semibold text-slate-500">
+            Deals completed rate
+          </p>
+          <h3 className="text-2xl font-bold mt-1 tracking-tight text-slate-950">
+            {kpis.completed_rate ?? 0}%
+          </h3>
+          <p className="text-[11px] text-slate-400 mt-1">
+            {dealOutcomes.completed} released / {dealOutcomes.total_deals} total deals
+          </p>
+        </Card>
 
-        {/* CARD 3: Supplier Fulfillment Compliance */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.15 }}
-        >
-          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.01)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.03)] hover:border-slate-300 transition-all rounded-3xl overflow-hidden p-6 group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-violet-50/50 flex items-center justify-center border border-violet-100 group-hover:scale-105 transition-transform">
-                <Shield className="w-5 h-5 text-violet-600" />
-              </div>
-              <Badge className="bg-violet-50 text-violet-600 border-none uppercase tracking-widest text-[8px] font-black py-1 px-2.5">
-                VERIFIED
-              </Badge>
+        {/* CARD 3: Average Lead Time */}
+        <Card className="bg-white border-slate-200 shadow-sm rounded-2xl p-6 hover:border-slate-300 transition-all">
+          <div className="flex justify-between items-start mb-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100 text-blue-600">
+              <Clock className="w-5 h-5" />
             </div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Supplier Fulfillment Compliance
-            </p>
-            <h3 className="text-3xl font-semibold mt-1 tracking-tight text-slate-950 font-display">
-              {kpis.fulfillment_compliance}
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium mt-2">
-              Verified supplier delivery success rate
-            </p>
-          </Card>
-        </motion.div>
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[9px] font-bold py-0.5 px-2">
+              LEAD TIME
+            </Badge>
+          </div>
+          <p className="text-xs font-semibold text-slate-500">
+            Avg promised lead time
+          </p>
+          <h3 className="text-2xl font-bold mt-1 tracking-tight text-slate-950">
+            {kpis.avg_lead_time_days ? `${kpis.avg_lead_time_days} days` : '0 days'}
+          </h3>
+          <p className="text-[11px] text-slate-400 mt-1">
+            Promised fulfillment duration across deals
+          </p>
+        </Card>
 
-        {/* CARD 4: Active Global Supplier Networks */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
-        >
-          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.01)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.03)] hover:border-slate-300 transition-all rounded-3xl overflow-hidden p-6 group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50/50 flex items-center justify-center border border-amber-100 group-hover:scale-105 transition-transform">
-                <Network className="w-5 h-5 text-amber-600" />
-              </div>
-              <Badge className="bg-amber-50 text-amber-600 border-none uppercase tracking-widest text-[8px] font-black py-1 px-2.5">
-                NETWORK
-              </Badge>
+        {/* CARD 4: Suppliers Used / Savings */}
+        <Card className="bg-white border-slate-200 shadow-sm rounded-2xl p-6 hover:border-slate-300 transition-all">
+          <div className="flex justify-between items-start mb-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center border border-indigo-100 text-indigo-600">
+              <Globe className="w-5 h-5" />
             </div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Active Global Supplier Networks
-            </p>
-            <h3 className="text-3xl font-semibold mt-1 tracking-tight text-slate-950 font-display">
-              {kpis.active_supplier_networks}
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium mt-2">
-              Suppliers actively participating in procurement workflows
-            </p>
-          </Card>
-        </motion.div>
+            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] font-bold py-0.5 px-2">
+              SUPPLIERS
+            </Badge>
+          </div>
+          <p className="text-xs font-semibold text-slate-500">
+            Suppliers used
+          </p>
+          <h3 className="text-2xl font-bold mt-1 tracking-tight text-slate-950">
+            {kpis.suppliers_used ?? 0}
+          </h3>
+          <p className="text-[11px] text-slate-400 mt-1">
+            {kpis.savings ? kpis.savings : "Savings: Not enough data"}
+          </p>
+        </Card>
       </div>
 
-      {/* 📊 MAIN HERO ANALYTICS SECTION & OPTIMIZATION INDEX */}
+      {/* 📊 MONTHLY TREND CHART & DEAL OUTCOMES PANEL */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* 📈 MAIN ANALYTICS CHART */}
-        <Card className="lg:col-span-8 bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.02)] rounded-[2.5rem] overflow-hidden flex flex-col">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-slate-50/30 py-6 px-10 border-b border-slate-100 gap-4">
-            <div>
-              <CardTitle className="text-lg font-display font-semibold text-slate-950">
-                Global Procurement Intelligence Trends
-              </CardTitle>
-              <CardDescription className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em] mt-1">
-                AI-powered analysis of procurement efficiency and supplier ecosystem performance
-              </CardDescription>
-            </div>
-            
-            {/* Elegant horizontal metric tabs */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Button 
-                variant={activeTab === 'savings' ? 'default' : 'outline'} 
-                size="sm"
-                onClick={() => setActiveTab('savings')}
-                className={`text-[9px] uppercase tracking-widest font-black h-8 px-3 rounded-lg transition-all border-none ${
-                  activeTab === 'savings' ? 'bg-slate-950 text-white shadow-sm' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                }`}
-              >
-                Savings
-              </Button>
-              <Button 
-                variant={activeTab === 'volume' ? 'default' : 'outline'} 
-                size="sm"
-                onClick={() => setActiveTab('volume')}
-                className={`text-[9px] uppercase tracking-widest font-black h-8 px-3 rounded-lg transition-all border-none ${
-                  activeTab === 'volume' ? 'bg-slate-950 text-white shadow-sm' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                }`}
-              >
-                Volume
-              </Button>
-              <Button 
-                variant={activeTab === 'fulfillment' ? 'default' : 'outline'} 
-                size="sm"
-                onClick={() => setActiveTab('fulfillment')}
-                className={`text-[9px] uppercase tracking-widest font-black h-8 px-3 rounded-lg transition-all border-none ${
-                  activeTab === 'fulfillment' ? 'bg-slate-950 text-white shadow-sm' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                }`}
-              >
-                Fulfillment
-              </Button>
-              <Button 
-                variant={activeTab === 'moq' ? 'default' : 'outline'} 
-                size="sm"
-                onClick={() => setActiveTab('moq')}
-                className={`text-[9px] uppercase tracking-widest font-black h-8 px-3 rounded-lg transition-all border-none ${
-                  activeTab === 'moq' ? 'bg-slate-950 text-white shadow-sm' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                }`}
-              >
-                MOQ Flex
-              </Button>
-              <Button 
-                variant={activeTab === 'response' ? 'default' : 'outline'} 
-                size="sm"
-                onClick={() => setActiveTab('response')}
-                className={`text-[9px] uppercase tracking-widest font-black h-8 px-3 rounded-lg transition-all border-none ${
-                  activeTab === 'response' ? 'bg-slate-950 text-white shadow-sm' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                }`}
-              >
-                Response
-              </Button>
-              <Button 
-                variant={activeTab === 'success' ? 'default' : 'outline'} 
-                size="sm"
-                onClick={() => setActiveTab('success')}
-                className={`text-[9px] uppercase tracking-widest font-black h-8 px-3 rounded-lg transition-all border-none ${
-                  activeTab === 'success' ? 'bg-slate-950 text-white shadow-sm' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                }`}
-              >
-                Success Rate
-              </Button>
-            </div>
+        {/* MONTHLY TREND CHART (8 cols) */}
+        <Card className="lg:col-span-8 bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden flex flex-col">
+          <CardHeader className="py-5 px-6 border-b border-slate-100">
+            <CardTitle className="text-base font-semibold text-slate-950 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-slate-700" />
+              Monthly procurement value (₹)
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-400 mt-0.5">
+              Escrow commitments grouped by month
+            </CardDescription>
           </CardHeader>
-          <CardContent className="p-10 flex-1 flex flex-col justify-center">
-            <div className="h-[320px] w-full min-w-0">
-              <ResponsiveContainer width="100%" height={320} minWidth={0}>
-                <AreaChart data={getActiveChartData()}>
-                  <defs>
-                    <linearGradient id={getGradientId()} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={getStrokeColor()} stopOpacity={0.06}/>
-                      <stop offset="95%" stopColor={getStrokeColor()} stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 900 }}
-                    dy={12}
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 900 }}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#fff', 
-                      borderRadius: '16px', 
-                      border: '1px solid #e2e8f0',
-                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
-                      padding: '12px'
-                    }}
-                    itemStyle={{ fontWeight: 900, fontSize: '12px' }}
-                    labelStyle={{ fontWeight: 900, fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="value" 
-                    name={
-                      activeTab === 'savings' ? 'Savings (%)' : 
-                      activeTab === 'volume' ? 'Volume ($K)' : 
-                      activeTab === 'fulfillment' ? 'Fulfillment (%)' : 
-                      activeTab === 'moq' ? 'MOQ Flex (%)' : 
-                      activeTab === 'response' ? 'Response (%)' : 
-                      'Success Rate (%)'
-                    }
-                    stroke={getStrokeColor()} 
-                    strokeWidth={3}
-                    fillOpacity={1} 
-                    fill={`url(#${getGradientId()})`} 
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+          <CardContent className="p-6 flex-1 flex flex-col justify-center">
+            {globalTrends.length === 0 ? (
+              <div className="py-16 text-center text-slate-400 text-sm">
+                No monthly trend data available.
+              </div>
+            ) : (
+              <div className="h-[280px] w-full min-w-0">
+                <ResponsiveContainer width="100%" height={280} minWidth={0}>
+                  <AreaChart data={globalTrends}>
+                    <defs>
+                      <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0f172a" stopOpacity={0.15}/>
+                        <stop offset="95%" stopColor="#0f172a" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="month" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#64748b', fontSize: 11, fontWeight: 600 }}
+                      dy={8}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#64748b', fontSize: 11, fontWeight: 600 }}
+                      tickFormatter={(val) => formatLakhCrore(val)}
+                    />
+                    <Tooltip 
+                      formatter={(val: any) => [formatINR(val, true), "Value"]}
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        borderRadius: '12px', 
+                        border: '1px solid #e2e8f0',
+                        padding: '10px'
+                      }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="sourcing_volume" 
+                      name="Value (₹)"
+                      stroke="#0f172a" 
+                      strokeWidth={2}
+                      fillOpacity={1} 
+                      fill="url(#trendGrad)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* 🎯 PROCUREMENT OPTIMIZATION SCORE */}
-        <Card className="lg:col-span-4 bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.02)] rounded-[2.5rem] overflow-hidden p-8 flex flex-col justify-between">
-          <div className="space-y-6">
+        {/* 🎯 DEAL OUTCOMES PANEL (4 cols) */}
+        <Card className="lg:col-span-4 bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden p-6 flex flex-col justify-between">
+          <div className="space-y-5">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Award className="w-4 h-4 text-slate-900" />
-                <CardTitle className="text-lg font-display font-semibold text-slate-950">Optimization Score</CardTitle>
-              </div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em]">
-                Multi-factor composite scoring on procurement performance
-              </p>
+              <CardTitle className="text-base font-semibold text-slate-950 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-slate-700" />
+                Deal outcomes
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-400 mt-0.5">
+                Distribution across your escrow contracts
+              </CardDescription>
             </div>
 
-            {/* Premium Big Display Ring/Number */}
-            <div className="flex items-center gap-6 py-2">
-              <div className="relative w-24 h-24 rounded-full bg-slate-950 flex items-center justify-center border-4 border-slate-800 shadow-xl shadow-slate-200">
-                <div className="text-center">
-                  <span className="text-3xl font-display font-black text-white leading-none">
-                    {scoreData.score}
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400 block border-t border-slate-800 pt-0.5 mt-0.5 uppercase tracking-wider">
-                    / 100
-                  </span>
-                </div>
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                <span className="text-xs font-semibold text-emerald-900">Completed</span>
+                <span className="text-sm font-bold text-emerald-950 font-mono">{dealOutcomes.completed}</span>
               </div>
-              <div className="space-y-1">
-                <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">Procurement Index</h4>
-                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-                  Calculated dynamically across active supplier trusts, audit verification, lead times, and MOQ flexibilities.
-                </p>
-              </div>
-            </div>
 
-            {/* Score Factors Breakdown */}
-            <div className="space-y-4 pt-2 border-t border-slate-100">
-              {scoreData.factors.map((factor: any) => (
-                <div key={factor.name} className="space-y-1.5">
-                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider">
-                    <span className="text-slate-500">{factor.name}</span>
-                    <span className="text-slate-900">{factor.value}%</span>
-                  </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className={cn(
-                        "h-full rounded-full transition-all duration-1000",
-                        factor.status === 'optimal' ? "bg-slate-900" : "bg-amber-500"
-                      )} 
-                      style={{ width: `${factor.value}%` }} 
-                    />
-                  </div>
+              <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50/60 border border-blue-100">
+                <span className="text-xs font-semibold text-blue-900">In Progress</span>
+                <span className="text-sm font-bold text-blue-950 font-mono">{dealOutcomes.in_progress}</span>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50/60 border border-amber-100">
+                <span className="text-xs font-semibold text-amber-900">Awaiting Payment</span>
+                <span className="text-sm font-bold text-amber-950 font-mono">{dealOutcomes.awaiting_payment}</span>
+              </div>
+
+              {dealOutcomes.refunded > 0 && (
+                <div className="flex items-center justify-between p-3 rounded-xl bg-rose-50/60 border border-rose-100">
+                  <span className="text-xs font-semibold text-rose-900">Refunded</span>
+                  <span className="text-sm font-bold text-rose-950 font-mono">{dealOutcomes.refunded}</span>
                 </div>
-              ))}
+              )}
             </div>
+          </div>
+
+          <div className="border-t border-slate-100 pt-4 mt-6">
+            <p className="text-[11px] text-slate-400 font-medium">
+              Total Recorded Deals: <span className="font-bold text-slate-700 font-mono">{dealOutcomes.total_deals}</span>
+            </p>
           </div>
         </Card>
       </div>
 
-      {/* 🌍 REGIONAL PROCUREMENT ANALYTICS & CATEGORY INTELLIGENCE */}
+      {/* 🌍 REGIONAL BREAKDOWN & CATEGORY TABLE */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        {/* Regional Sourcing Intelligence */}
-        <Card className="xl:col-span-6 bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.02)] rounded-[2.5rem] overflow-hidden flex flex-col">
-          <CardHeader className="py-6 px-8 bg-slate-50/50 border-b border-slate-100/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-display font-semibold text-slate-950">Regional Sourcing Intelligence</CardTitle>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.1em] mt-0.5">
-                  Active geopolitical distribution of procurement cycles and logistics
-                </p>
-              </div>
-              <Badge className="bg-slate-100 text-slate-600 font-black text-[9px] tracking-wider uppercase border-none">
-                GEOGRAPHIC
-              </Badge>
-            </div>
+        {/* Regional Table */}
+        <Card className={categoryData.length > 0 ? "xl:col-span-6 bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden" : "xl:col-span-12 bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden"}>
+          <CardHeader className="py-5 px-6 border-b border-slate-100">
+            <CardTitle className="text-base font-semibold text-slate-950 flex items-center gap-2">
+              <Globe className="w-4 h-4 text-slate-700" />
+              Orders by country
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-400 mt-0.5">
+              Deals, total ₹ volume, and average lead time by supplier origin
+            </CardDescription>
           </CardHeader>
-          <CardContent className="p-0 flex-1">
-            <div className="overflow-x-auto min-w-0">
-              <table className="w-full text-left border-collapse min-w-[600px]">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-50/30">
-                    <th className="py-3 px-4 sm:px-6 font-black">Region</th>
-                    <th className="py-3 px-4 sm:px-6 font-black text-center">Active Suppliers</th>
-                    <th className="py-3 px-4 sm:px-6 font-black text-center">Avg Savings</th>
-                    <th className="py-3 px-4 sm:px-6 font-black text-center">Avg Lead Time</th>
-                    <th className="py-3 px-4 sm:px-6 font-black text-right">Trust Rating</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {data.regional_sourcing_intelligence?.map((region: any, i: number) => (
-                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-4 px-8 font-display font-semibold text-slate-900 text-xs">
-                        {region.region}
-                      </td>
-                      <td className="py-4 px-6 text-center text-xs font-semibold text-slate-600">
-                        {region.active_suppliers}
-                      </td>
-                      <td className="py-4 px-6 text-center text-xs font-semibold text-slate-600">
-                        {region.avg_savings}
-                      </td>
-                      <td className="py-4 px-6 text-center text-xs font-semibold text-slate-600">
-                        {region.avg_lead_time}
-                      </td>
-                      <td className="py-4 px-8 text-right text-[10px] font-black tracking-wider">
-                        <span 
-                          className={cn(
-                            "px-2.5 py-1 rounded-md font-black uppercase text-[8px]",
-                            region.trust_rating === 'GOLD' ? "bg-amber-50 text-amber-600 border border-amber-200/50" :
-                            region.trust_rating === 'VERIFIED' ? "bg-blue-50 text-blue-600 border border-blue-200/50" :
-                            "bg-slate-100 text-slate-500 border border-slate-200/50"
-                          )}
-                        >
-                          {region.trust_rating}
-                        </span>
-                      </td>
+          <CardContent className="p-0">
+            {regionalData.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-sm">
+                No country breakdown available yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto min-w-0">
+                <table className="w-full text-left border-collapse min-w-[500px]">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                      <th className="py-3 px-6">Country</th>
+                      <th className="py-3 px-6 text-center">Deals</th>
+                      <th className="py-3 px-6 text-right">Total (₹)</th>
+                      <th className="py-3 px-6 text-right">Avg Lead Time</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {regionalData.map((row: any, i: number) => (
+                      <tr key={i} className="hover:bg-slate-50/50">
+                        <td className="py-3.5 px-6 font-semibold text-slate-900">{row.region}</td>
+                        <td className="py-3.5 px-6 text-center font-mono text-slate-600">{row.deals}</td>
+                        <td className="py-3.5 px-6 text-right font-mono font-semibold text-slate-900">{formatINR(row.total_inr, true)}</td>
+                        <td className="py-3.5 px-6 text-right text-slate-500">{row.avg_lead_time}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Procurement Category Intelligence */}
-        <Card className="xl:col-span-6 bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.02)] rounded-[2.5rem] overflow-hidden flex flex-col">
-          <CardHeader className="py-6 px-8 bg-slate-50/50 border-b border-slate-100/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-display font-semibold text-slate-950">Procurement Category Intelligence</CardTitle>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.1em] mt-0.5">
-                  Deep catalog performance mapping price optimization and MOQ averages
-                </p>
-              </div>
-              <Badge className="bg-slate-100 text-slate-600 font-black text-[9px] tracking-wider uppercase border-none">
-                CATALOG
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 flex-1">
-            <div className="overflow-x-auto min-w-0">
-              <table className="w-full text-left border-collapse min-w-[600px]">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-50/30">
-                    <th className="py-3 px-4 sm:px-6 font-black">Category</th>
-                    <th className="py-3 px-4 sm:px-6 font-black text-center">Avg Savings</th>
-                    <th className="py-3 px-4 sm:px-6 font-black text-center">Supplier Count</th>
-                    <th className="py-3 px-4 sm:px-6 font-black text-center">Fulfillment Rate</th>
-                    <th className="py-3 px-4 sm:px-6 font-black text-right">Avg MOQ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {data.procurement_category_intelligence?.map((cat: any, i: number) => (
-                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-4 px-8 font-display font-semibold text-slate-900 text-xs">
-                        {cat.category}
-                      </td>
-                      <td className="py-4 px-6 text-center text-xs font-semibold text-slate-600">
-                        {cat.avg_savings}
-                      </td>
-                      <td className="py-4 px-6 text-center text-xs font-semibold text-slate-600">
-                        {cat.supplier_count}
-                      </td>
-                      <td className="py-4 px-6 text-center text-xs font-semibold text-slate-600">
-                        {cat.fulfillment_rate}
-                      </td>
-                      <td className="py-4 px-8 text-right text-xs font-semibold text-slate-600">
-                        {cat.avg_moq}
-                      </td>
+        {/* Category Table (rendered only if real categories exist) */}
+        {categoryData.length > 0 && (
+          <Card className="xl:col-span-6 bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="py-5 px-6 border-b border-slate-100">
+              <CardTitle className="text-base font-semibold text-slate-950 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-slate-700" />
+                Product categories
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-400 mt-0.5">
+                Breakdown by purchased product category
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto min-w-0">
+                <table className="w-full text-left border-collapse min-w-[400px]">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                      <th className="py-3 px-6">Category</th>
+                      <th className="py-3 px-6 text-center">Deals</th>
+                      <th className="py-3 px-6 text-right">Total (₹)</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {categoryData.map((cat: any, i: number) => (
+                      <tr key={i} className="hover:bg-slate-50/50">
+                        <td className="py-3.5 px-6 font-semibold text-slate-900">{cat.category}</td>
+                        <td className="py-3.5 px-6 text-center font-mono text-slate-600">{cat.deals_count}</td>
+                        <td className="py-3.5 px-6 text-right font-mono font-semibold text-slate-900">{formatINR(cat.total_inr, true)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {/* 🧠 AI PROCUREMENT INSIGHTS & LIVE PROCUREMENT SIGNALS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* AI Procurement Insights Engine */}
-        <Card className="lg:col-span-7 bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.02)] rounded-[2.5rem] overflow-hidden flex flex-col">
-          <CardHeader className="py-6 px-8 bg-slate-50/50 border-b border-slate-100/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-slate-950" />
-                  <CardTitle className="text-base font-display font-semibold text-slate-950">AI Procurement Insights</CardTitle>
-                </div>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.1em] mt-0.5">
-                  Dynamic supply intelligence generated from live global ecosystem signals
-                </p>
-              </div>
-              <Badge className="bg-slate-950 text-white font-black text-[9px] tracking-wider uppercase border-none px-2.5 shadow-sm">
-                AI ENGINE
-              </Badge>
+      {/* 🧠 RULE-BASED INSIGHTS (Shown only if user has deals) */}
+      {insights.length > 0 && (
+        <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+          <CardHeader className="py-5 px-6 border-b border-slate-100 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-semibold text-slate-950 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-slate-700" />
+                Based on your deals
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-400 mt-0.5">
+                Rule-based summaries computed from your procurement history
+              </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="p-8 space-y-4">
-            {data.ai_procurement_insights?.map((insight: string, i: number) => (
-              <div key={i} className="flex gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-all hover:translate-x-1 duration-200">
-                <div className="w-8 h-8 rounded-xl bg-slate-950 flex items-center justify-center shrink-0">
-                  <span className="text-white text-xs font-black">{i + 1}</span>
+          <CardContent className="p-6 space-y-3">
+            {insights.map((insight: string, idx: number) => (
+              <div 
+                key={idx}
+                className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 text-xs text-slate-800"
+              >
+                <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center shrink-0 text-[10px] font-bold">
+                  {idx + 1}
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-700 font-medium leading-relaxed">
-                    {insight}
-                  </p>
-                </div>
+                <p className="leading-relaxed font-medium">{insight}</p>
               </div>
             ))}
           </CardContent>
         </Card>
-
-        {/* Live Procurement Signals */}
-        <Card className="lg:col-span-5 bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.02)] rounded-[2.5rem] overflow-hidden flex flex-col">
-          <CardHeader className="py-6 px-8 bg-slate-50/50 border-b border-slate-100/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                  <CardTitle className="text-base font-display font-semibold text-slate-950">Live Procurement Signals</CardTitle>
-                </div>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.1em] mt-0.5">
-                  Real-time events streaming from Alibaba ecosystem & negotiations
-                </p>
-              </div>
-              <Badge className="bg-slate-100 text-slate-600 font-black text-[9px] tracking-wider uppercase border-none">
-                STREAMING
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-8 flex-1 flex flex-col justify-between">
-            <div className="space-y-5">
-              {data.live_procurement_signals?.map((signal: string, i: number) => (
-                <div key={i} className="flex gap-3 text-xs">
-                  <div className="w-2.5 h-2.5 rounded-full bg-slate-950 shrink-0 mt-1 flex items-center justify-center animate-pulse" />
-                  <div className="space-y-1">
-                    <p className="text-slate-600 font-semibold leading-relaxed">
-                      {signal}
-                    </p>
-                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">
-                      Active Signal • {i === 0 ? "Just Now" : i === 1 ? "12 mins ago" : i === 2 ? "42 mins ago" : "3 hours ago"}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-6 mt-6 border-t border-slate-100">
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Globe className="w-5 h-5 text-slate-900" />
-                  <div>
-                    <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-900">Network Observing</h5>
-                    <p className="text-[10px] text-slate-400 font-medium">Scanned 128 active networks in last 5 minutes</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      )}
     </div>
   );
-};
-
-export default Analytics;
+}

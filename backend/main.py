@@ -1,10 +1,17 @@
+import os
+import sys
+
+# Ensure backend directory is in sys.path
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends, Request, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional, Any, Union, List, Dict
-import os
 import re
 import hashlib
 from datetime import datetime, timedelta, timezone
@@ -312,25 +319,25 @@ def update_supplier_reputation(supplier_id: Any, delivered_on_time: bool):
 @app.get("/api/procurement/analytics")
 async def get_procurement_analytics(current_user: str = Depends(get_current_user)):
     try:
-        return procurement_analytics_engine.calculate_procurement_intelligence()
+        return procurement_analytics_engine.calculate_procurement_intelligence(current_user)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/dashboard/analytics")
 async def get_dashboard_analytics(current_user: str = Depends(get_current_user)):
     try:
-        return dashboard_analytics.calculate_analytics()
+        return dashboard_analytics.calculate_analytics(current_user)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/dashboard/insights")
 async def get_dashboard_insights(current_user: str = Depends(get_current_user)):
     try:
-        res = procurement_insights.generate_insights()
+        res = procurement_insights.generate_insights(current_user)
         return {
             "insights": res["insights"],
-            "signals": res["signals"],
-            "scorecard": res["scorecard"]
+            "signals": res.get("signals", {}),
+            "scorecard": res.get("scorecard", {})
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -338,7 +345,7 @@ async def get_dashboard_insights(current_user: str = Depends(get_current_user)):
 @app.get("/api/dashboard/procurement-feed")
 async def get_dashboard_feed(current_user: str = Depends(get_current_user)):
     try:
-        res = procurement_insights.generate_insights()
+        res = procurement_insights.generate_insights(current_user)
         return res["procurement_feed"]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -346,7 +353,7 @@ async def get_dashboard_feed(current_user: str = Depends(get_current_user)):
 @app.get("/api/dashboard/regions")
 async def get_dashboard_regions(current_user: str = Depends(get_current_user)):
     try:
-        res = dashboard_analytics.calculate_analytics()
+        res = dashboard_analytics.calculate_analytics(current_user)
         return res["regions_detail"]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -354,14 +361,45 @@ async def get_dashboard_regions(current_user: str = Depends(get_current_user)):
 @app.get("/api/settlements/analytics")
 async def get_settlements_analytics(current_user: str = Depends(get_current_user)):
     try:
-        return settlement_analytics.calculate_settlements_telemetry()
+        return settlement_analytics.calculate_settlements_telemetry(current_user)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/settlements/ledger")
 async def get_settlements_ledger(current_user: str = Depends(get_current_user)):
     try:
-        return settlement_analytics.compile_settlement_ledger()
+        return settlement_analytics.compile_settlement_ledger(current_user)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/settlements/export-csv")
+@app.get("/api/escrows/export-csv")
+async def export_escrows_csv(current_user: str = Depends(get_current_user)):
+    """
+    Downloads the authenticated user's escrows as a CSV.
+    Headers: id,supplier,amount_inr,status,created_at
+    """
+    try:
+        escrows = settlement_analytics.compile_settlement_ledger(current_user)
+        import io
+        import csv
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["id", "supplier", "amount_inr", "status", "created_at"])
+        for esc in escrows:
+            writer.writerow([
+                esc.get("id", ""),
+                esc.get("supplier", ""),
+                esc.get("contract_value", 0.0),
+                esc.get("raw_status") or esc.get("status", ""),
+                esc.get("created_at") or esc.get("date", "")
+            ])
+        output.seek(0)
+        return Response(
+            content=output.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=escrows_{int(time.time())}.csv"}
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2208,4 +2246,5 @@ if __name__ == "__main__":
         reload_mode = False
     else:
         reload_mode = os.getenv("RELOAD", "True").lower() == "true"
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=reload_mode)
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload_mode)

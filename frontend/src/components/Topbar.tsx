@@ -44,8 +44,8 @@ const Topbar = () => {
           className="h-8 w-auto group-hover:rotate-6 transition-transform duration-300 shadow-sm rounded-lg" 
         />
         <span className="text-lg font-display font-black tracking-tight text-slate-950">ProcureAI</span>
-        <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
-          Enterprise
+        <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+          Cashfree Sandbox
         </span>
       </div>
 
@@ -56,14 +56,14 @@ const Topbar = () => {
           className="flex items-center gap-2.5 p-1 sm:px-2 sm:py-1 rounded-xl hover:bg-slate-100/80 transition-colors cursor-pointer group"
         >
           <div className="w-8 h-8 rounded-xl bg-slate-950 flex items-center justify-center text-white font-black text-xs shadow-sm group-hover:scale-105 transition-transform">
-            {user?.name?.charAt(0) || 'U'}
+            {user?.name?.charAt(0) || user?.email?.charAt(0) || 'U'}
           </div>
           <div className="hidden sm:block text-left">
             <p className="text-xs font-bold leading-none text-slate-900 group-hover:text-primary transition-colors truncate max-w-[140px]">
-              {user?.name || 'Enterprise User'}
+              {user?.name || user?.email?.split('@')[0] || 'User'}
             </p>
             <p className="text-[9px] text-slate-400 font-semibold leading-tight mt-0.5 truncate max-w-[140px]">
-              {user?.email || 'user@procureai.co'}
+              {user?.email || 'user@example.com'}
             </p>
           </div>
           <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${dropdownOpen ? 'rotate-180 text-primary' : ''}`} />
@@ -73,11 +73,8 @@ const Topbar = () => {
         {dropdownOpen && (
           <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-200/50 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
             <div className="px-4 py-2 border-b border-slate-100">
-              <p className="text-xs font-bold text-slate-900 truncate">{user?.name || 'User'}</p>
+              <p className="text-xs font-bold text-slate-900 truncate">{user?.name || user?.email?.split('@')[0] || 'User'}</p>
               <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
-              <div className="mt-1 flex items-center gap-1.5 text-[9px] font-bold text-emerald-600">
-                <Shield className="w-2.5 h-2.5" /> Verified Organization
-              </div>
             </div>
 
             <div className="p-1">

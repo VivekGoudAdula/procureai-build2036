@@ -1,172 +1,149 @@
+"""
+Dashboard Analytics Service
+
+Computes real-time procurement metrics strictly scoped to the authenticated
+user's own records (escrows, RFQs, ratings). No synthetic scaling factors,
+no hardcoded fallbacks, and no canned default values.
+"""
+
 import os
 import json
-from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from database.db import escrows_collection, rfqs_collection, suppliers_collection
 
-from database.db import suppliers_collection, escrows_collection
 SEARCH_CACHE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "alibaba_search_cache.json")
+
 
 class DashboardAnalyticsService:
     """
-    Computes enterprise-grade procurement KPIs and regional supplier metrics 
-    by aggregating live databases and cached search profiles.
+    Computes dashboard KPIs and regional supplier metrics strictly scoped to buyer_id.
     """
-    
-    def __init__(self):
-        pass
 
     def _load_json(self, path: str, default: Any) -> Any:
+        """Helper to read json safely (maintained for backwards-compatible test coverage)."""
         if not os.path.exists(path):
             return default
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception as e:
-            print(f"[Analytics] Error reading {path}: {str(e)}")
+        except Exception:
             return default
 
     def get_raw_suppliers(self) -> List[Dict[str, Any]]:
+        """Returns cached suppliers for legacy tests."""
         from database.db import get_cached_suppliers
         suppliers = get_cached_suppliers()
-        
-        # Load additional supplier records cached from live alibaba search
         cached_search = self._load_json(SEARCH_CACHE_PATH, [])
         if isinstance(cached_search, list):
             suppliers.extend(cached_search)
-            
         return suppliers
 
-    def get_escrow_records(self) -> Dict[str, Any]:
-        escrows = list(escrows_collection.find({}, {"_id": 0}))
-        return {e["transaction_id"]: e for e in escrows if "transaction_id" in e}
+    def _get_supplier_country_map(self) -> Dict[str, str]:
+        """Builds an id -> country lookup map for suppliers in database."""
+        try:
+            suppliers = list(suppliers_collection.find({}, {"_id": 0, "id": 1, "country": 1, "region": 1}))
+            country_map = {}
+            for s in suppliers:
+                s_id = str(s.get("id"))
+                country = s.get("country") or s.get("region") or "Unknown"
+                country_map[s_id] = country
+            return country_map
+        except Exception:
+            return {}
 
-    def calculate_analytics(self) -> Dict[str, Any]:
-        suppliers = self.get_raw_suppliers()
-        escrows = self.get_escrow_records()
-        
-        # 1. Total Sourcing & Supplier Counts
-        # We model a scaling factor for enterprise presentation ($2.4M base volume)
-        escrow_count = len(escrows)
-        active_negotiations = max(14, len([e for e in escrows.values() if e.get("escrow_status") == "funded"]))
-        
-        total_supplier_count = max(128, len(suppliers))
-        
-        # Base contract volumes
-        total_volume_usd = 2400000.0
-        for esc in escrows.values():
-            # Standard multiplier to scale simulated escrow orders into realistic enterprise volume
-            amount = esc.get("amount", 0.0)
-            if amount > 0:
-                total_volume_usd += amount * 15000  # Enterprise scaling factor
-                
-        # 2. Regional Sourcing Distribution & Metrics
-        # China, Vietnam, India, Turkey, Bangladesh
-        regions = ["China", "Vietnam", "India", "Turkey", "Bangladesh"]
-        region_mapping = {
-            "china": "China",
-            "vietnam": "Vietnam",
-            "india": "India",
-            "turkey": "Turkey",
-            "bangladesh": "Bangladesh"
-        }
-        
-        # Distribute raw database suppliers over these major sourcing hubs if not explicitly assigned
-        region_stats = {r: {"count": 0, "total_moq": 0, "total_delivery": 0, "total_price": 0.0, "suppliers": 0} for r in regions}
-        
-        # Default seeds to guarantee stable realistic numbers in dashboard
-        default_stats = {
-            "China": {"count": 48, "avg_delivery": 12, "avg_moq": 500, "avg_price": 18.50},
-            "Vietnam": {"count": 32, "avg_delivery": 9, "avg_moq": 200, "avg_price": 22.00},
-            "India": {"count": 24, "avg_delivery": 14, "avg_moq": 350, "avg_price": 16.50},
-            "Turkey": {"count": 15, "avg_delivery": 8, "avg_moq": 150, "avg_price": 27.80},
-            "Bangladesh": {"count": 9, "avg_delivery": 18, "avg_moq": 1000, "avg_price": 9.40}
-        }
-        
-        for r, d in default_stats.items():
-            region_stats[r]["count"] = d["count"]
-            region_stats[r]["total_moq"] = d["avg_moq"] * d["count"]
-            region_stats[r]["total_delivery"] = d["avg_delivery"] * d["count"]
-            region_stats[r]["total_price"] = d["avg_price"] * d["count"]
-            region_stats[r]["suppliers"] = d["count"]
+    def calculate_analytics(self, buyer_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Calculates dashboard metrics for the given user (or all if None).
+        Returns zeros and empty lists if the user has no records.
+        """
+        query: Dict[str, Any] = {}
+        if buyer_id is not None:
+            if not buyer_id:
+                return {
+                    "rfqs_count": 0,
+                    "awaiting_payment_count": 0,
+                    "in_progress_count": 0,
+                    "completed_count": 0,
+                    "refunded_count": 0,
+                    "total_volume_inr": 0.0,
+                    "orders_by_country": [],
+                    "regions_detail": [],
+                    "active_negotiation_count": 0,
+                    "avg_delivery_time": 0.0,
+                    "avg_pricing": 0.0,
+                }
+            query = {"buyer_id": buyer_id}
 
-        # Overlay real-time supplier data from database
-        for s in suppliers:
-            country = s.get("country", s.get("region", "China"))
-            country_norm = region_mapping.get(country.lower(), "China")
-            
-            # Extract pricing and delivery metrics
-            price = s.get("negotiated_price", s.get("base_price", 15.0))
-            moq = s.get("moq", 250)
-            delivery = s.get("lead_time_days", s.get("delivery_days", 10))
-            
-            region_stats[country_norm]["count"] += 1
-            region_stats[country_norm]["suppliers"] += 1
-            region_stats[country_norm]["total_moq"] += moq
-            region_stats[country_norm]["total_delivery"] += delivery
-            region_stats[country_norm]["total_price"] += price
+        # 1. Fetch user's escrows
+        escrows = list(escrows_collection.find(query, {"_id": 0}))
 
-        # Compile final region metrics
-        supplier_regions_distribution = {}
-        compiled_regions = []
-        for r, stats in region_stats.items():
-            count = stats["count"]
-            avg_moq = int(stats["total_moq"] / count) if count > 0 else default_stats[r]["avg_moq"]
-            avg_delivery = int(stats["total_delivery"] / count) if count > 0 else default_stats[r]["avg_delivery"]
-            avg_price = round(stats["total_price"] / count, 2) if count > 0 else default_stats[r]["avg_price"]
-            
-            supplier_regions_distribution[r] = count
-            compiled_regions.append({
-                "region": r,
+        # 2. Fetch user's RFQs
+        rfqs_count = rfqs_collection.count_documents(query)
+
+        # 3. Status breakdown
+        awaiting_payment_count = 0
+        in_progress_count = 0
+        completed_count = 0
+        refunded_count = 0
+        total_volume_inr = 0.0
+        total_lead_time = 0
+        total_price = 0.0
+
+        for esc in escrows:
+            status = str(esc.get("status") or esc.get("escrow_status", "")).upper()
+            amt = float(esc.get("amount_inr", esc.get("amount", 0.0)))
+            lead_time = int(esc.get("promised_delivery_days", 0))
+            total_lead_time += lead_time
+            total_price += amt
+
+            if status in ["CREATED"]:
+                awaiting_payment_count += 1
+            elif status in ["FUNDED", "PROOF_UPLOADED", "VERIFIED", "LOCKED"]:
+                in_progress_count += 1
+                total_volume_inr += amt
+            elif status in ["RELEASED"]:
+                completed_count += 1
+                total_volume_inr += amt
+            elif status in ["REFUNDED"]:
+                refunded_count += 1
+
+        # 4. Orders by supplier country
+        supplier_country_map = self._get_supplier_country_map()
+        country_counts: Dict[str, int] = {}
+
+        for esc in escrows:
+            s_id = str(esc.get("supplier_id", ""))
+            country = esc.get("supplier_country") or supplier_country_map.get(s_id) or "Unknown"
+            country_counts[country] = country_counts.get(country, 0) + 1
+
+        orders_by_country = [
+            {"name": country, "deals": count, "escrows": count}
+            for country, count in sorted(country_counts.items(), key=lambda x: x[1], reverse=True)
+        ]
+
+        regions_detail = [
+            {
+                "region": country,
                 "active_suppliers": count,
-                "avg_delivery": f"{avg_delivery} days",
-                "avg_moq": f"{avg_moq} units",
-                "avg_price": f"${avg_price:.2f}"
-            })
+                "deals_count": count,
+            }
+            for country, count in sorted(country_counts.items(), key=lambda x: x[1], reverse=True)
+        ]
 
-        # 3. Overall Procurement Performance Indicators
-        avg_moq = 350
-        avg_delivery_time = 11.2 # days
-        avg_pricing = 148.50 # USD
-        
-        # Real calculation from db
-        if len(suppliers) > 0:
-            prices = [s.get("negotiated_price", s.get("base_price", 0.0)) for s in suppliers]
-            avg_pricing = round(sum(prices) / len(prices), 2)
-            
-            moqs = [s.get("moq", 1) for s in suppliers]
-            avg_moq = int(sum(moqs) / len(moqs))
-            
-            deliveries = [s.get("lead_time_days", s.get("delivery_days", 1)) for s in suppliers]
-            avg_delivery_time = round(sum(deliveries) / len(deliveries), 1)
+        count = len(escrows)
+        avg_delivery = round(total_lead_time / count, 1) if count > 0 else 0.0
+        avg_price = round(total_price / count, 2) if count > 0 else 0.0
 
-        # 4. Sourcing & Negotiations Outcomes
-        success_deals = sum(s.get("successful_deals", 0) for s in suppliers)
-        total_deals = sum(s.get("total_deals", 0) for s in suppliers)
-        negotiation_success_rate = round((success_deals / total_deals) * 100, 1) if total_deals > 0 else 92.5
-        
-        # Savings calculation (target vs negotiated price savings)
-        # Average savings is around 18.4%
-        avg_savings_pct = 18.4
-        procurement_savings_usd = round(total_volume_usd * (avg_savings_pct / 100), 2)
-        
-        # Response rates
-        supplier_response_rate = 92.4 # % average
-        
-        # Policy Alignment and Compliance Metrics
-        policy_compliance_rate = 96.0 # % default
-        
         return {
-            "total_supplier_count": total_supplier_count,
-            "total_volume_usd": round(total_volume_usd, 2),
-            "procurement_savings_usd": procurement_savings_usd,
-            "avg_savings_percentage": avg_savings_pct,
-            "supplier_regions_distribution": supplier_regions_distribution,
-            "regions_detail": compiled_regions,
-            "avg_moq": avg_moq,
-            "avg_delivery_time": avg_delivery_time,
-            "avg_pricing": avg_pricing,
-            "negotiation_success_rate": negotiation_success_rate,
-            "supplier_response_rate": supplier_response_rate,
-            "active_negotiation_count": active_negotiations,
-            "policy_compliance_rate": policy_compliance_rate
+            "rfqs_count": rfqs_count,
+            "awaiting_payment_count": awaiting_payment_count,
+            "in_progress_count": in_progress_count,
+            "completed_count": completed_count,
+            "refunded_count": refunded_count,
+            "total_volume_inr": round(total_volume_inr, 2),
+            "orders_by_country": orders_by_country,
+            "regions_detail": regions_detail,
+            "active_negotiation_count": in_progress_count,
+            "avg_delivery_time": avg_delivery,
+            "avg_pricing": avg_price,
         }

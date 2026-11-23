@@ -3,106 +3,90 @@ import {
   HelpCircle, 
   Search, 
   Book, 
-  MessageSquare, 
   Mail, 
   ExternalLink, 
   ChevronRight,
   Shield,
   ShieldCheck,
-  Cpu
+  FileText
 } from 'lucide-react';
-import { motion } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 
-const Help = () => {
+export default function Help() {
   const faqs = [
     {
-      question: "How do AI agents negotiate?",
-      answer: "Our agents use advanced LLMs to interact with supplier APIs and communication channels, applying game theory and negotiation strategies to reach optimal price points.",
-      icon: Cpu
+      question: "How does AI supplier discovery work?",
+      answer: "ProcureAI searches cached Alibaba supplier listings matching your product specifications, lead times, and quantity requirements, ranking partners by trust metrics.",
+      icon: Search
     },
     {
-      question: "Is the settlement secure?",
-      answer: "Funds are held in escrow and released only after verified delivery, ensuring transparency and security.",
-      icon: Shield
-    },
-    {
-      question: "How are payments processed?",
-      answer: "Escrow commitments are funded securely through our platform, with gateway integration in progress.",
+      question: "How are escrow commitments secured?",
+      answer: "Payments are processed through the Cashfree payment gateway in sandbox mode. Funds remain locked in escrow until delivery proof is reviewed and verified.",
       icon: ShieldCheck
+    },
+    {
+      question: "How do RFQs work?",
+      answer: "When you select a supplier, ProcureAI generates a formal Request for Quotation (RFQ) PDF that can be dispatched directly to the supplier's contact email.",
+      icon: FileText
     }
   ];
 
   return (
-    <div className="space-y-12 max-w-5xl mx-auto">
-      <div className="text-center space-y-4">
-        <h1 className="text-[clamp(1.5rem,2.5vw,2.25rem)] font-display font-bold tracking-tight">How can we help?</h1>
-        <p className="text-foreground/60 max-w-xl mx-auto">Search our documentation or contact our support team for assistance with your autonomous commerce journey.</p>
-        <div className="relative group max-w-2xl mx-auto mt-8">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/40 w-6 h-6 group-focus-within:text-primary transition-colors" />
-          <Input 
-            placeholder="Search for guides, API docs, and more..." 
-            className="h-16 pl-14 bg-white/5 border-white/10 rounded-2xl focus:border-primary/50 transition-all text-lg"
-          />
-        </div>
+    <div className="space-y-12 max-w-4xl mx-auto pb-16 pt-4 px-2">
+      <div className="text-center space-y-3">
+        <h1 className="text-[clamp(1.5rem,2.5vw,2.25rem)] font-display font-bold tracking-tight text-slate-950">
+          Help & Support
+        </h1>
+        <p className="text-slate-500 max-w-lg mx-auto text-sm">
+          Guides, frequently asked questions, and assistance for your procurement workflows.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {[
-          { title: 'Documentation', icon: Book, desc: 'Detailed guides and API references.' },
-          { title: 'Community', icon: MessageSquare, desc: 'Join our Discord and talk to other users.' },
-          { title: 'Direct Support', icon: Mail, desc: 'Email our team for personalized help.' },
-        ].map((item) => (
-          <Card key={item.title} className="glass-card border-white/5 hover:border-primary/30 transition-all group cursor-pointer">
-            <CardContent className="p-8 text-center">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 neon-glow group-hover:bg-primary/20 transition-colors">
-                <item.icon className="text-primary w-8 h-8" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">{item.title}</h3>
-              <p className="text-sm text-foreground/60 leading-relaxed">{item.desc}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <Card className="bg-white border-slate-200 shadow-sm rounded-2xl hover:border-slate-300 transition-all p-6 text-center">
+          <div className="w-12 h-12 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center mx-auto mb-4 text-slate-800">
+            <Book className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-bold text-slate-900 mb-1">Documentation</h3>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Detailed guides on supplier discovery, RFQs, and escrow commitments.
+          </p>
+        </Card>
+
+        <Card className="bg-white border-slate-200 shadow-sm rounded-2xl hover:border-slate-300 transition-all p-6 text-center">
+          <div className="w-12 h-12 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center mx-auto mb-4 text-slate-800">
+            <Mail className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-bold text-slate-900 mb-1">Support Contact</h3>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Email our team for support or inquiries regarding the BUILD 2036 prototype.
+          </p>
+        </Card>
       </div>
 
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold flex items-center gap-3">
-          <HelpCircle className="text-secondary w-6 h-6" />
+      <div className="space-y-5">
+        <h2 className="text-lg font-bold flex items-center gap-2 text-slate-950">
+          <HelpCircle className="w-5 h-5 text-slate-700" />
           Frequently Asked Questions
         </h2>
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-3">
           {faqs.map((faq) => (
-            <Card key={faq.question} className="glass-card border-white/5 hover:bg-white/5 transition-colors cursor-pointer group">
-              <CardContent className="p-6 flex items-start gap-6">
-                <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center shrink-0">
-                  <faq.icon className="text-secondary w-5 h-5" />
+            <Card key={faq.question} className="bg-white border-slate-200 shadow-sm rounded-xl">
+              <CardContent className="p-5 flex items-start gap-4">
+                <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 text-slate-700">
+                  <faq.icon className="w-4 h-4" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-bold text-lg mb-2 group-hover:text-secondary transition-colors">{faq.question}</h4>
-                  <p className="text-sm text-foreground/60 leading-relaxed">{faq.answer}</p>
+                  <h4 className="font-semibold text-sm text-slate-900 mb-1">{faq.question}</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">{faq.answer}</p>
                 </div>
-                <ChevronRight className="w-5 h-5 text-foreground/20 group-hover:text-secondary transition-colors" />
               </CardContent>
             </Card>
           ))}
         </div>
       </div>
-
-      <Card className="glass-card border-primary/30 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden neon-glow">
-        <CardContent className="p-12 flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="space-y-4 text-center md:text-left">
-            <h2 className="text-3xl font-bold tracking-tight">Still have questions?</h2>
-            <p className="text-foreground/60 max-w-md">Our team of experts is ready to help you optimize your procurement workflows.</p>
-          </div>
-          <Button className="h-14 px-8 text-lg font-bold bg-primary hover:bg-primary/90 neon-glow rounded-xl gap-2">
-            Contact Support <ExternalLink className="w-5 h-5" />
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
-};
-
-export default Help;
+}

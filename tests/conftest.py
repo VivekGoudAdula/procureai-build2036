@@ -33,30 +33,49 @@ class MockCollection:
     def __init__(self, data_list):
         self.data_list = data_list
 
+    def _match_item(self, item, q):
+        if not q:
+            return True
+        for k, v in q.items():
+            if k == "$or":
+                if not any(self._match_item(item, sub) for sub in v):
+                    return False
+            elif isinstance(v, dict):
+                if "$ne" in v and (item.get(k) == v["$ne"] or str(item.get(k)) == str(v["$ne"])):
+                    return False
+                if "$in" in v and item.get(k) not in v["$in"]:
+                    return False
+                if "$lt" in v and str(item.get(k, "")) >= str(v["$lt"]):
+                    return False
+            elif item.get(k) != v and str(item.get(k)) != str(v):
+                return False
+        return True
+
     def find(self, query=None, projection=None):
-        return [copy.deepcopy(x) for x in self.data_list]
+        if not query:
+            return [copy.deepcopy(x) for x in self.data_list]
+        return [copy.deepcopy(x) for x in self.data_list if self._match_item(x, query)]
+
+    def count_documents(self, query=None):
+        return len(self.find(query))
 
     def find_one(self, query=None, projection=None):
-        if not query:
-            return copy.deepcopy(self.data_list[0]) if self.data_list else None
-        
-        def match_item(item, q):
-            for k, v in q.items():
-                if k == "$or":
-                    if not any(match_item(item, sub) for sub in v):
-                        return False
-                elif item.get(k) != v and str(item.get(k)) != str(v):
-                    return False
-            return True
-
         for item in self.data_list:
-            if match_item(item, query):
+            if self._match_item(item, query):
                 return copy.deepcopy(item)
         return None
 
-    def delete_many(self, query):
-        self.data_list.clear()
-        return MagicMock()
+    def delete_many(self, query=None):
+        if not query:
+            count = len(self.data_list)
+            self.data_list.clear()
+        else:
+            to_keep = [x for x in self.data_list if not self._match_item(x, query)]
+            count = len(self.data_list) - len(to_keep)
+            self.data_list[:] = to_keep
+        res = MagicMock()
+        res.deleted_count = count
+        return res
 
     def insert_one(self, document):
         self.data_list.append(copy.deepcopy(document))

@@ -43,7 +43,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { toast } from 'sonner';
+import { formatINR } from '../lib/utils';
 
 interface AdminStats {
   total_users: number;
@@ -263,8 +263,8 @@ const Admin = () => {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
-                <div className="text-3xl font-bold text-slate-900">${stats?.payment_stats?.total_payment_amount?.toFixed(2) || '0.00'}</div>
-                <DollarSign className="w-8 h-8 text-purple-500" />
+                <div className="text-2xl font-bold text-slate-900">{formatINR(stats?.payment_stats?.total_payment_amount, true)}</div>
+                <span className="text-2xl font-bold text-purple-500">₹</span>
               </div>
             </CardContent>
           </Card>
