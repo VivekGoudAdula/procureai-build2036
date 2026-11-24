@@ -41,7 +41,14 @@ class SettlementAnalyticsService:
         if buyer_id is not None:
             if not buyer_id:
                 return []
-            query = {"buyer_id": buyer_id}
+            query = {
+                "$or": [
+                    {"buyer_id": buyer_id},
+                    {"user_id": buyer_id},
+                    {"buyer_email": buyer_id},
+                    {"user_email": buyer_id},
+                ]
+            }
 
         escrows = list(escrows_collection.find(query, {"_id": 0}))
         if not escrows:

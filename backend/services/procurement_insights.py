@@ -44,7 +44,14 @@ class ProcurementInsightsService:
                     "signals": {},
                     "scorecard": {"score": 0, "max_score": 100, "metrics": []},
                 }
-            query = {"buyer_id": buyer_id}
+            query = {
+                "$or": [
+                    {"buyer_id": buyer_id},
+                    {"user_id": buyer_id},
+                    {"buyer_email": buyer_id},
+                    {"user_email": buyer_id},
+                ]
+            }
 
         escrows = list(escrows_collection.find(query, {"_id": 0}))
         rfqs = list(rfqs_collection.find(query, {"_id": 0}))

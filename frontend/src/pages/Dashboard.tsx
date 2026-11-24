@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import { useApp } from '../context/AppContext';
 import { 
   ArrowRight,
@@ -40,8 +42,14 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       const [resAnalytics, resFeed] = await Promise.all([
-        fetch('/api/dashboard/analytics').then(r => r.ok ? r.json() : null),
-        fetch('/api/dashboard/procurement-feed').then(r => r.ok ? r.json() : null)
+        axios.get(`${API_BASE_URL}/api/dashboard/analytics`).then(r => r.data).catch((err) => {
+          console.warn("[Dashboard] Analytics fetch error:", err?.response?.data || err?.message);
+          return null;
+        }),
+        axios.get(`${API_BASE_URL}/api/dashboard/procurement-feed`).then(r => r.data).catch((err) => {
+          console.warn("[Dashboard] Procurement feed fetch error:", err?.response?.data || err?.message);
+          return null;
+        })
       ]);
 
       if (resAnalytics) {

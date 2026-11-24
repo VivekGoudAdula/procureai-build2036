@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import { 
   Search, 
   Download, 
@@ -49,15 +51,16 @@ export const Transactions = () => {
   // Fetch settlements ledger
   const fetchSettlements = async () => {
     try {
-      const resLedger = await fetch('/api/settlements/ledger').then(r => r.ok ? r.json() : null);
+      const response = await axios.get(`${API_BASE_URL}/api/settlements/ledger`);
+      const resLedger = response.data;
       if (resLedger && Array.isArray(resLedger)) {
         setLedger(resLedger);
         if (resLedger.length > 0 && !selectedRow) {
           setSelectedRow(resLedger[0]);
         }
       }
-    } catch (err) {
-      console.error('Error fetching settlements data:', err);
+    } catch (err: any) {
+      console.error('Error fetching settlements data:', err?.response?.data || err?.message);
       toast.error('Failed to load transaction ledger.');
     } finally {
       setIsLoading(false);
@@ -93,25 +96,13 @@ export const Transactions = () => {
   // Handle escrow release trigger
   const handleReleaseSettlement = async (id: string) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/procurement/release-settlement', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify({ transaction_id: id })
+      await axios.post(`${API_BASE_URL}/api/procurement/release-settlement`, {
+        transaction_id: id
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to release escrow.');
-      }
-
       toast.success('Settlement released successfully (simulated payout).');
       fetchSettlements();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to release settlement.');
+      toast.error(err?.response?.data?.detail || err.message || 'Failed to release settlement.');
     }
   };
 
@@ -119,9 +110,10 @@ export const Transactions = () => {
   const handleExportCSV = async () => {
     setIsExporting(true);
     try {
-      const response = await fetch('/api/settlements/export-csv');
-      if (!response.ok) throw new Error("Export failed");
-      const blob = await response.blob();
+      const response = await axios.get(`${API_BASE_URL}/api/settlements/export-csv`, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

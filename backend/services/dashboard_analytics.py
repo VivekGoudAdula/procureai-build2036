@@ -72,7 +72,14 @@ class DashboardAnalyticsService:
                     "avg_delivery_time": 0.0,
                     "avg_pricing": 0.0,
                 }
-            query = {"buyer_id": buyer_id}
+            query = {
+                "$or": [
+                    {"buyer_id": buyer_id},
+                    {"user_id": buyer_id},
+                    {"buyer_email": buyer_id},
+                    {"user_email": buyer_id},
+                ]
+            }
 
         # 1. Fetch user's escrows
         escrows = list(escrows_collection.find(query, {"_id": 0}))

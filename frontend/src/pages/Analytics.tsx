@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -33,15 +35,12 @@ export default function Analytics() {
 
   const fetchAnalytics = async () => {
     try {
-      const response = await fetch('/api/procurement/analytics');
-      if (response.ok) {
-        const result = await response.json();
-        setData(result);
-      } else {
-        throw new Error("Failed to load analytics");
+      const response = await axios.get(`${API_BASE_URL}/api/procurement/analytics`);
+      if (response.data) {
+        setData(response.data);
       }
-    } catch (err) {
-      console.warn("Analytics load error:", err);
+    } catch (err: any) {
+      console.warn("Analytics load error:", err?.response?.data || err?.message);
     } finally {
       setIsLoading(false);
     }
@@ -54,9 +53,10 @@ export default function Analytics() {
   const handleExportCSV = async () => {
     setIsExporting(true);
     try {
-      const response = await fetch('/api/settlements/export-csv');
-      if (!response.ok) throw new Error("Export failed");
-      const blob = await response.blob();
+      const response = await axios.get(`${API_BASE_URL}/api/settlements/export-csv`, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

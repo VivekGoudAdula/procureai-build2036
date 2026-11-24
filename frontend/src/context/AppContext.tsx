@@ -5,7 +5,7 @@ import { API_BASE_URL } from '../config';
 // Global Axios Request Interceptor for authentication
 axios.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('procureai_token');
+    const token = localStorage.getItem('procureai_token') || localStorage.getItem('token');
     if (token && config.headers) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -19,17 +19,24 @@ axios.interceptors.request.use(
 // Global Fetch Interceptor / Patch
 const originalFetch = window.fetch;
 window.fetch = async (input, init) => {
-  const token = localStorage.getItem('procureai_token');
+  let resolvedInput = input;
+  if (typeof input === 'string' && input.startsWith('/api/')) {
+    resolvedInput = `${API_BASE_URL}${input}`;
+  } else if (input instanceof URL && input.pathname.startsWith('/api/') && typeof API_BASE_URL === 'string') {
+    resolvedInput = `${API_BASE_URL}${input.pathname}${input.search}`;
+  }
+
+  const token = localStorage.getItem('procureai_token') || localStorage.getItem('token');
   if (token) {
-    const url = typeof input === 'string' 
-      ? input 
-      : (input instanceof URL 
-          ? input.href 
-          : (input && typeof input === 'object' && 'url' in input 
-              ? (input as any).url 
+    const url = typeof resolvedInput === 'string' 
+      ? resolvedInput 
+      : (resolvedInput instanceof URL 
+          ? resolvedInput.href 
+          : (resolvedInput && typeof resolvedInput === 'object' && 'url' in resolvedInput 
+              ? (resolvedInput as any).url 
               : ''));
 
-    // Only inject Bearer token for relative or local API requests
+    // Inject Bearer token for API requests
     const isApiRequest = 
       url.startsWith('/') || 
       url.startsWith(window.location.origin) || 
@@ -52,7 +59,7 @@ window.fetch = async (input, init) => {
       }
     }
   }
-  return originalFetch(input, init);
+  return originalFetch(resolvedInput, init);
 };
 
 interface Transaction {
